@@ -12,6 +12,10 @@ import Avaliacoes from "./pages/Avaliacoes";
 import Contato from "./pages/Contato";
 import Agendamento from "./pages/Agendamento";
 import NotFound from "./pages/NotFound";
+import AdminLogin from "./pages/admin/Login";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminRoute from "./pages/admin/AdminRoute";
+import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +33,9 @@ const App = () => (
           <Route path="/assinatura" element={<Assinatura />} />
           <Route path="/avaliacoes" element={<Avaliacoes />} />
           <Route path="/contato" element={<Contato />} />
+          
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="/agendamento" element={<Agendamento />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

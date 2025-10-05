@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from '@tanstack/react-query';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +11,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, User } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const Agendamento = () => {
   const { toast } = useToast();
-  const [date, setDate] = useState<Date>();
+  const [date, setDate] = useState<Date | undefined>();
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+
   const [formData, setFormData] = useState({
     clientName: "",
     clientEmail: "",
@@ -28,10 +36,22 @@ const Agendamento = () => {
     notes: "",
   });
 
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+
   const { data: services } = useQuery({
     queryKey: ["services"],
     queryFn: async () => {
       const { data, error } = await supabase.from("services").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: combos } = useQuery({
+    queryKey: ["service_combos"],
+    queryFn: async () => {
+      // service_combos may not be typed in the generated supabase client
+      const { data, error } = await (supabase as any).from("service_combos").select("*");
       if (error) throw error;
       return data;
     },
@@ -46,6 +66,32 @@ const Agendamento = () => {
     },
   });
 
+  // hardcoded barber options shown in the UI (kept for legacy slugs), reuse below
+  const defaultBarbers = [
+    { slug: 'anderson', name: 'Anderson' },
+    { slug: 'pedro', name: 'Pedro' },
+    { slug: 'andre', name: 'Andre' },
+  ];
+
+  // Fetch bookings for the next 60 days to mark unavailable dates/times
+  const today = new Date();
+  const rangeEnd = addDays(today, 60);
+  const bookingsQueryKey = ["bookings-range", format(today, "yyyy-MM-dd"), format(rangeEnd, "yyyy-MM-dd")];
+  const { data: bookings } = useQuery({
+    queryKey: bookingsQueryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("booking_date,booking_time,barber_id,service_id,status")
+        .gte("booking_date", format(today, "yyyy-MM-dd"))
+        .lte("booking_date", format(rangeEnd, "yyyy-MM-dd"));
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [bookedTimes, setBookedTimes] = useState<Set<string>>(new Set()); // fully-booked times (all barbers)
+  const [bookedTimesByBarber, setBookedTimesByBarber] = useState<Record<string, Set<string>>>({});
   const timeSlots = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
@@ -53,25 +99,172 @@ const Agendamento = () => {
     "18:00", "18:30", "19:00", "19:30"
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const bookedDates = useMemo(() => {
+    // compute dates that are fully booked (every time slot is booked by all barbers)
+    const dateMap: Record<string, Record<string, Set<string>>> = {};
+    (bookings || []).forEach((b: any) => {
+      if (!b || String(b.status).toLowerCase().startsWith('cancel')) return;
+      const d = b.booking_date;
+      const t = b.booking_time;
+      const bid = String(b.barber_id ?? '');
+      if (!d || !t) return;
+      dateMap[d] = dateMap[d] || {};
+      dateMap[d][t] = dateMap[d][t] || new Set();
+      dateMap[d][t].add(bid);
+    });
+
+    const full = new Set<string>();
+    const barberCount = defaultBarbers.length;
+    Object.entries(dateMap).forEach(([d, timesObj]) => {
+      // count how many times are fully booked (i.e., booked by all barbers)
+      const fullyBookedTimes = Object.keys(timesObj).filter((t) => (timesObj[t]?.size || 0) >= barberCount);
+      if (fullyBookedTimes.length >= timeSlots.length) full.add(d);
+    });
+    return full;
+  }, [bookings]);
+
+  useEffect(() => {
+    // if serviceId passed in query, preselect it
+    const serviceId = query.get("serviceId");
+    if (serviceId) {
+      setFormData((prev) => ({ ...prev, serviceId }));
+    }
+  }, [query]);
+
+  // update booked times and barbers whenever date changes
+  useEffect(() => {
+    if (!date) {
+      setBookedTimes(new Set());
+      setBookedTimesByBarber({});
+      return;
+    }
+    const dStr = format(date, "yyyy-MM-dd");
+    // consider only non-canceled bookings for availability
+    const todays = (bookings || []).filter((b: any) => b.booking_date === dStr && !(String(b.status).toLowerCase().startsWith('cancel')));
+    const timesByBarber: Record<string, Set<string>> = {};
+    const timeToBarbers: Record<string, Set<string>> = {};
+
+    const getDurationForBooking = (bk: any) => {
+      // try to find the service/combo duration from known lists; default to 60 minutes
+      const sid = bk.service_id;
+      let duration = 60;
+      if (sid) {
+        const svc = services?.find((s: any) => s.id === sid);
+        if (svc && svc.duration) duration = Number(svc.duration);
+        else {
+          const combo = combos?.find((c: any) => c.id === sid);
+          if (combo && combo.duration) duration = Number(combo.duration);
+        }
+      }
+      return duration || 60;
+    };
+
+    const getOccupiedSlots = (startTime: string, durationMinutes: number) => {
+      const startIndex = timeSlots.indexOf(startTime);
+      // if not found, try to parse and find nearest slot
+      const idx = startIndex >= 0 ? startIndex : timeSlots.findIndex(t => t === startTime);
+      const slotsNeeded = Math.max(1, Math.ceil(durationMinutes / 30));
+      const res: string[] = [];
+      for (let i = 0; i < slotsNeeded; i++) {
+        const s = timeSlots[idx + i];
+        if (!s) break;
+        res.push(s);
+      }
+      return res;
+    };
+
+    todays.forEach((bk: any) => {
+      const bid = String(bk.barber_id ?? '');
+      const t = bk.booking_time;
+      if (!t) return;
+      const duration = getDurationForBooking(bk);
+      const occupied = getOccupiedSlots(t, duration);
+      timesByBarber[bid] = timesByBarber[bid] || new Set();
+      occupied.forEach((slot) => {
+        timesByBarber[bid].add(slot);
+        timeToBarbers[slot] = timeToBarbers[slot] || new Set();
+        timeToBarbers[slot].add(bid);
+      });
+    });
+
+    // mark time as fully-booked only when all barbers are booked at that time
+    const barberCount = (barbers && barbers.length) || defaultBarbers.length;
+    const fullyBookedTimes = Object.keys(timeToBarbers).filter(t => (timeToBarbers[t].size || 0) >= barberCount);
+    setBookedTimes(new Set(fullyBookedTimes));
+    setBookedTimesByBarber(timesByBarber);
+  }, [date, bookings]);
+
+  const queryClient = useQueryClient();
+
+  // helper: get duration (minutes) for a service/combo id, fallback 60
+  const getDurationForServiceId = (sid: any) => {
+    if (!sid) return 60;
+    const svc = services?.find((s: any) => s.id === sid);
+    if (svc && svc.duration) return Number(svc.duration);
+    const combo = combos?.find((c: any) => c.id === sid);
+    if (combo && combo.duration) return Number(combo.duration);
+    return 60;
+  };
+
+  const parseTimeToMinutes = (timeStr: string) => {
+    const [hh, mm] = timeStr.split(":").map(Number);
+    return hh * 60 + mm;
+  };
+
+  const timesOverlap = (startA: string, durA: number, startB: string, durB: number) => {
+    const a0 = parseTimeToMinutes(startA);
+    const a1 = a0 + durA;
+    const b0 = parseTimeToMinutes(startB);
+    const b1 = b0 + durB;
+    return Math.max(a0, b0) < Math.min(a1, b1);
+  };
+
+  const handleNext = () => {
+    // validation per step
+    if (currentStep === 1 && !formData.serviceId) {
+      toast({ title: "Escolha um serviço", description: "Selecione um serviço antes de continuar.", variant: "destructive" });
+      return;
+    }
+    if (currentStep === 2 && !date) {
+      toast({ title: "Escolha uma data", description: "Selecione a data desejada.", variant: "destructive" });
+      return;
+    }
+    if (currentStep === 3 && (!formData.barberId || !formData.time)) {
+      toast({ title: "Barbeiro e horário", description: "Selecione barbeiro e horário.", variant: "destructive" });
+      return;
+    }
+    if (currentStep === 4 && (!formData.clientName || !formData.clientPhone)) {
+      toast({ title: "Dados pessoais", description: "Preencha nome e telefone.", variant: "destructive" });
+      return;
+    }
+
+    setCurrentStep((s) => Math.min(5, s + 1));
+  };
+
+  const handleBack = () => setCurrentStep((s) => Math.max(1, s - 1));
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     if (!date || !formData.serviceId || !formData.barberId || !formData.time) {
-      toast({
-        title: "Erro",
-        description: "Por favor, preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Por favor, preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
 
     try {
+      // Map barber slug (e.g. 'anderson') to real DB id if possible
+      let barberDbId = formData.barberId;
+      if (barbers && barbers.length) {
+        const found = barbers.find((b: any) => b.slug === formData.barberId || b.id === formData.barberId || b.name?.toLowerCase() === String(formData.barberId).toLowerCase());
+        if (found) barberDbId = found.id;
+      }
+
       const { error } = await supabase.from("bookings").insert({
         client_name: formData.clientName,
         client_email: formData.clientEmail,
         client_phone: formData.clientPhone,
         service_id: formData.serviceId,
-        barber_id: formData.barberId,
+        barber_id: barberDbId,
         booking_date: format(date, "yyyy-MM-dd"),
         booking_time: formData.time,
         notes: formData.notes,
@@ -79,28 +272,24 @@ const Agendamento = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Agendamento realizado!",
-        description: "Seu horário foi agendado com sucesso. Entraremos em contato para confirmação.",
-      });
+      // refresh bookings cache so UI (and admin) sees the new booking
+      try { 
+        await queryClient.invalidateQueries({ queryKey: bookingsQueryKey }); 
+      } catch (err) { /* ignore */ }
+      try {
+        await queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      } catch (err) { /* ignore */ }
 
-      // Reset form
-      setFormData({
-        clientName: "",
-        clientEmail: "",
-        clientPhone: "",
-        serviceId: "",
-        barberId: "",
-        time: "",
-        notes: "",
-      });
+      toast({ title: "Agendamento realizado!", description: "Seu horário foi agendado com sucesso. Entraremos em contato para confirmação." });
+
+      // Reset form and go to step 1
+      setFormData({ clientName: "", clientEmail: "", clientPhone: "", serviceId: "", barberId: "", time: "", notes: "" });
       setDate(undefined);
+      setCurrentStep(1);
+      // optionally navigate back to home or a success page
+      navigate("/");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível realizar o agendamento. Tente novamente.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Não foi possível realizar o agendamento. Tente novamente.", variant: "destructive" });
     }
   };
 
@@ -110,161 +299,275 @@ const Agendamento = () => {
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-4 max-w-4xl">
-          <div className="text-center mb-12">
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl md:text-5xl font-bold mb-2">
               <span className="text-gradient">Agendar Horário</span>
             </h1>
-            <p className="text-muted-foreground text-lg">
-              Reserve seu horário com facilidade
-            </p>
+            <p className="text-muted-foreground">Siga os passos para concluir seu agendamento</p>
           </div>
 
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-2xl">Complete seu agendamento</CardTitle>
-              <CardDescription>Preencha os dados abaixo para agendar</CardDescription>
+              <CardTitle className="text-2xl">Agendamento - Passo {currentStep} de 5</CardTitle>
+              <CardDescription>Selecione as opções e confirme seu horário</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Personal Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nome Completo *</Label>
-                    <Input
-                      id="name"
-                      value={formData.clientName}
-                      onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                      required
-                      className="bg-background border-border"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Telefone *</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.clientPhone}
-                      onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                      required
-                      className="bg-background border-border"
-                    />
-                  </div>
-                </div>
+              {/* Step content */}
+              {currentStep === 1 && (
+                <div className="space-y-4">
+                  <Label>Escolha o serviço ou combo *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {services?.map((service) => (
+                      <button
+                        key={`s-${service.id}`}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, serviceId: service.id, barberId: prev.barberId }))}
+                        className={`p-4 rounded-md border cursor-pointer text-left ${formData.serviceId === service.id ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">{service.name}</div>
+                            <div className="text-sm text-muted-foreground">R$ {service.price.toFixed(2)}</div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">{service.duration ?? '—'} min</div>
+                        </div>
+                      </button>
+                    ))}
 
-                <div>
-                  <Label htmlFor="email">E-mail *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.clientEmail}
-                    onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
-                    required
-                    className="bg-background border-border"
-                  />
-                </div>
-
-                {/* Service Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Serviço *</Label>
-                    <Select
-                      value={formData.serviceId}
-                      onValueChange={(value) => setFormData({ ...formData, serviceId: value })}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Selecione o serviço" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {services?.map((service) => (
-                          <SelectItem key={service.id} value={service.id}>
-                            {service.name} - R$ {service.price.toFixed(2)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label>Barbeiro *</Label>
-                    <Select
-                      value={formData.barberId}
-                      onValueChange={(value) => setFormData({ ...formData, barberId: value })}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Selecione o barbeiro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {barbers?.map((barber) => (
-                          <SelectItem key={barber.id} value={barber.id}>
-                            {barber.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {combos?.map((combo) => (
+                      <button
+                        key={`c-${combo.id}`}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, serviceId: combo.id, barberId: prev.barberId }))}
+                        className={`p-4 rounded-md border cursor-pointer text-left ${formData.serviceId === combo.id ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">{combo.name}</div>
+                            <div className="text-sm text-muted-foreground">R$ {combo.price.toFixed(2)}</div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">{combo.duration ?? '—'} min</div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* Date and Time */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {currentStep === 2 && (
+                <div className="space-y-4 md:grid md:grid-cols-2 md:gap-6">
                   <div>
                     <Label className="flex items-center gap-2 mb-2">
                       <CalendarIcon className="h-4 w-4 text-primary" />
-                      Data *
+                      Escolha a data *
                     </Label>
                     <Calendar
                       mode="single"
                       selected={date}
-                      onSelect={setDate}
-                      disabled={(date) => date < new Date()}
+                      onSelect={(d) => setDate(d ?? undefined)}
+                      disabled={(d) => {
+                        // disable past dates (compare date-only using startOfDay to avoid timezone issues)
+                        const dayStr = format(startOfDay(d), "yyyy-MM-dd");
+                        const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
+                        // allow selecting today (so only dates strictly before today blocked)
+                        const isBeforeToday = dayStr < todayStr;
+                        return isBeforeToday || bookedDates.has(dayStr);
+                      }}
                       locale={ptBR}
                       className="rounded-md border border-border bg-background"
                     />
                   </div>
 
                   <div>
-                    <Label className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-primary" />
-                      Horário *
-                    </Label>
-                    <Select
-                      value={formData.time}
-                      onValueChange={(value) => setFormData({ ...formData, time: value })}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Selecione o horário" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {timeSlots.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-2">Horários disponíveis</Label>
+                    <div className="grid grid-cols-3 gap-2 max-h-80 overflow-auto">
+                      {timeSlots.map((time) => {
+                        // determine if time is booked or already passed
+                        let disabled = bookedTimes.has(time);
+                        if (date) {
+                          // if selected date is today, disable past times
+                          const todayStr = format(new Date(), "yyyy-MM-dd");
+                          const selStr = format(date, "yyyy-MM-dd");
+                          if (selStr === todayStr) {
+                            const [hh, mm] = time.split(":");
+                            const slot = new Date(startOfDay(date));
+                            slot.setHours(Number(hh), Number(mm), 0, 0);
+                            if (slot < new Date()) disabled = true;
+                          }
+                        }
+
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => !disabled && setFormData((p) => ({ ...p, time }))}
+                            disabled={disabled}
+                            aria-disabled={disabled}
+                            className={`relative py-2 px-3 rounded-md text-center text-sm flex items-center justify-center ${formData.time === time ? 'bg-primary text-white' : disabled ? 'bg-background/40 text-muted-foreground pointer-events-none opacity-60' : 'bg-background border border-border'}`}>
+                            <span>{time}</span>
+                            {disabled && (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 absolute right-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c.828 0 1.5.672 1.5 1.5V14h-3v-1.5C10.5 11.672 11.172 11 12 11zm6 3v3a2 2 0 01-2 2H8a2 2 0 01-2-2v-3" />
+                                <rect x="6" y="9" width="12" height="6" rx="2" ry="2" stroke="none" fill="currentColor" opacity="0.15" />
+                              </svg>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">Clique em um horário para selecioná-lo. Horários ocupados não estão filtrados aqui.</div>
                   </div>
                 </div>
+              )}
 
-                {/* Notes */}
-                <div>
-                  <Label htmlFor="notes">Observações</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Alguma preferência ou observação?"
-                    className="bg-background border-border"
-                    rows={3}
-                  />
+              {currentStep === 3 && (
+                <div className="space-y-4">
+                  <Label>Escolha barbeiro *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { slug: 'anderson', name: 'Anderson' },
+                      { slug: 'pedro', name: 'Pedro' },
+                      { slug: 'andre', name: 'Andre' },
+                    ].map((b) => {
+                      const barberRecord = barbers?.find((bb: any) => bb.slug === b.slug || bb.name?.toLowerCase() === b.name.toLowerCase());
+                      const barberIdForCheck = String(barberRecord?.id ?? b.slug);
+                      // a barber is unavailable if the selected time overlaps any existing booking for that barber
+                      let disabled = false;
+                      if (formData.time) {
+                        const selStart = formData.time;
+                        const selDur = getDurationForServiceId(formData.serviceId);
+                        const dStr = date ? format(date, "yyyy-MM-dd") : null;
+                        if (dStr) {
+                          const todays = (bookings || []).filter((bk: any) => bk.booking_date === dStr && !(String(bk.status).toLowerCase().startsWith('cancel')) && String(bk.barber_id) === barberIdForCheck);
+                          disabled = todays.some((bk: any) => {
+                            const existStart = bk.booking_time;
+                            const existDur = getDurationForServiceId(bk.service_id);
+                            return timesOverlap(selStart, selDur, existStart, existDur);
+                          });
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={b.slug}
+                          onClick={() => !disabled && setFormData((p) => ({ ...p, barberId: barberRecord?.id ?? b.slug }))}
+                          role="button"
+                          tabIndex={0}
+                          aria-disabled={disabled}
+                          className={`p-3 rounded-md border flex items-center gap-3 ${formData.barberId === (barberRecord?.id ?? b.slug) ? 'border-primary bg-primary/5' : disabled ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'border-border bg-background'}`}>
+                          <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                            <span className="text-sm text-muted-foreground">Foto</span>
+                          </div>
+                          <div>
+                            <div className="font-semibold">{b.name}</div>
+                            <div className="text-sm text-muted-foreground">{disabled ? 'Indisponível' : 'Barbeiro'}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
 
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full bg-gradient-primary hover:opacity-90 text-black font-bold"
-                >
-                  Confirmar Agendamento
-                </Button>
-              </form>
+              {currentStep === 4 && (
+                <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Nome Completo *</Label>
+                    <Input id="name" value={formData.clientName} onChange={(e) => setFormData((p) => ({ ...p, clientName: e.target.value }))} required className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Telefone *</Label>
+                    <Input id="phone" type="tel" value={formData.clientPhone} onChange={(e) => setFormData((p) => ({ ...p, clientPhone: e.target.value }))} required className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">E-mail (opcional)</Label>
+                    <Input id="email" type="email" value={formData.clientEmail} onChange={(e) => setFormData((p) => ({ ...p, clientEmail: e.target.value }))} className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <Label htmlFor="notes">Observações</Label>
+                    <Textarea id="notes" ref={(el) => (messageRef.current = el)} value={formData.notes} onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))} placeholder="Alguma preferência ou observação?" className="bg-background border-border" rows={3} />
+                  </div>
+                </form>
+              )}
+
+              {currentStep === 5 && (() => {
+                const selectedService = services?.find(s => s.id === formData.serviceId) || combos?.find((c: any) => c.id === formData.serviceId);
+                const selectedBarber = (barbers && barbers.find(b => b.id === formData.barberId)) || (formData.barberId && { name: String(formData.barberId) });
+                const formattedDate = date ? format(date, "dd 'de' MMMM yyyy", { locale: ptBR }) : '—';
+
+                return (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Resumo do agendamento</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                      <div className="col-span-1">
+                        <div className="rounded-lg overflow-hidden bg-gradient-to-br from-muted/20 to-transparent p-4 flex items-center gap-4">
+                          <div className="w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
+                            {/* service image or placeholder */}
+                            <img src={selectedService?.image_url ?? '/Barba.webp'} alt={selectedService?.name ?? 'Serviço'} className="object-cover w-full h-full" />
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold">{selectedService?.name ?? '—'}</div>
+                            <div className="text-sm text-muted-foreground">{selectedService && 'Preço: R$ ' + (selectedService.price?.toFixed ? selectedService.price.toFixed(2) : String(selectedService.price || '—'))}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{selectedService?.duration ? `${selectedService.duration} min` : ''}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2">
+                        <div className="rounded-lg border border-border bg-card p-4">
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                              <div className="text-xs text-muted-foreground">Data</div>
+                              <div className="font-medium">{formattedDate}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Horário</div>
+                              <div className="font-medium">{formData.time || '—'}</div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                              <div className="text-xs text-muted-foreground">Barbeiro</div>
+                              <div className="font-medium">{selectedBarber?.name ?? '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Cliente</div>
+                              <div className="font-medium">{formData.clientName || '—'}</div>
+                            </div>
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="text-xs text-muted-foreground">Telefone</div>
+                            <div className="font-medium">{formData.clientPhone || '—'}</div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs text-muted-foreground">Observações</div>
+                            <div className="text-sm">{formData.notes || 'Nenhuma observação'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Navigation buttons */}
+              <div className="mt-6 flex gap-3 justify-end">
+                {currentStep > 1 && (
+                  <Button variant="ghost" onClick={handleBack}>Voltar</Button>
+                )}
+
+                {currentStep < 5 && (
+                  <Button className="btn-cta" onClick={handleNext}>Próximo</Button>
+                )}
+
+                {currentStep === 5 && (
+                  <Button size="lg" className="w-48 btn-cta-filled" onClick={() => handleSubmit()}>
+                    Confirmar Agendamento
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

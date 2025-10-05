@@ -36,6 +36,18 @@ const Index = () => {
     },
   ];
 
+  // Services list (static for now; can be fetched from the database)
+  const servicesList = [
+    { key: "corte", name: "Corte", description: "Corte masculino com máquina e tesoura", price: 60.0, duration: 45 },
+    { key: "barba", name: "Barba", description: "Design e aparo de barba", price: 40.0, duration: 30 },
+    { key: "sobrancelha", name: "Sobrancelha", description: "Design de sobrancelha e acabamento", price: 30.0, duration: 20 },
+    { key: "limpeza", name: "Limpeza de Pele", description: "Limpeza facial rápida para manter a pele saudável", price: 50.0, duration: 40 },
+  ];
+
+  const combos = [
+    { key: "corte-barba", name: "Corte + Barba", description: "Combo com corte e barba com desconto especial", price: 85.0, originalPrice: 100.0, duration: 75 },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -54,8 +66,8 @@ const Index = () => {
         <div className="container mx-auto px-4 z-10 text-center">
           <div className="max-w-4xl mx-auto animate-fade-in">
             <div className="inline-flex items-center gap-2 bg-muted/50 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Barbearia Premium em São Paulo</span>
+              
+              <span className="text-sm font-medium text-foreground"></span>
             </div>
 
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight">
@@ -70,7 +82,7 @@ const Index = () => {
               <Link to="/agendamento">
                 <Button
                   size="lg"
-                  className="bg-gradient-primary hover:opacity-90 text-black font-bold text-lg px-8 py-6 hover-glow"
+                  className="btn-cta font-bold text-lg px-8 py-6 hover-glow"
                 >
                   Agendar Horário
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -80,24 +92,11 @@ const Index = () => {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-primary text-primary hover:bg-primary/10 text-lg px-8 py-6"
+                  className="btn-cta text-lg px-8 py-6"
                 >
                   Ver Serviços
                 </Button>
               </Link>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-              {stats.map((stat, index) => (
-                <Card key={index} className="bg-card/50 backdrop-blur-sm border-border hover:border-primary transition-colors">
-                  <CardContent className="p-6 text-center">
-                    <stat.icon className="h-8 w-8 text-primary mx-auto mb-3" />
-                    <p className="text-3xl font-bold text-gradient mb-1">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  </CardContent>
-                </Card>
-              ))}
             </div>
           </div>
         </div>
@@ -136,6 +135,8 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Serviços e Combos foram movidos para a página /servicos */}
+
       {/* CTA Section */}
       <section className="py-20 relative">
         <div className="absolute inset-0 bg-gradient-amber-glow opacity-50" />
@@ -151,7 +152,7 @@ const Index = () => {
               <Link to="/agendamento">
                 <Button
                   size="lg"
-                  className="bg-gradient-primary hover:opacity-90 text-black font-bold text-lg px-8 py-6"
+                  className="btn-cta font-bold text-lg px-8 py-6"
                 >
                   Agendar Agora
                   <ArrowRight className="ml-2 h-5 w-5" />

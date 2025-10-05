@@ -33,7 +33,10 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         day_range_end: "day-range-end",
         day_selected:
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
+  // keep day_today stable (force hover to the same visual state to avoid persistent hover look)
+  // mark today with a subtle ring instead of forcing a background so hover/selection behave correctly
+  // ensure the day number is visible (white) on the accent background
+  day_today: "ring-1 ring-accent/30 text-white hover:bg-accent/10 hover:text-white",
         day_outside:
           "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
         day_disabled: "text-muted-foreground opacity-50",

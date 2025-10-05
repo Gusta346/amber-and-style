@@ -51,8 +51,9 @@ const Navbar = () => {
                 )}
               </Link>
             ))}
+            <Link to="/admin/login" className="text-sm font-medium text-foreground hover:text-primary">Login</Link>
             <Link to="/agendamento">
-              <Button className="bg-gradient-primary hover:opacity-90 text-black font-semibold hover-glow">
+              <Button className="btn-cta font-semibold hover-glow">
                 Agendar Horário
               </Button>
             </Link>
@@ -83,8 +84,9 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
+              <Link to="/admin/login" onClick={() => setIsOpen(false)} className="w-full text-center text-base font-medium text-foreground hover:text-primary">Login</Link>
               <Link to="/agendamento" onClick={() => setIsOpen(false)}>
-                <Button className="w-full bg-gradient-primary hover:opacity-90 text-black font-semibold">
+                <Button className="w-full btn-cta font-semibold">
                   Agendar Horário
                 </Button>
               </Link>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { Link } from "react-router-dom";
 
 const Cursos = () => {
   const modules = [
@@ -55,7 +56,7 @@ const Cursos = () => {
             <Card className="bg-card border-border hover:border-primary transition-colors">
               <CardContent className="p-6 text-center">
                 <Users className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-2xl font-bold mb-2">Até 15 alunos</h3>
+                <h3 className="text-2xl font-bold mb-2">Até 8 alunos</h3>
                 <p className="text-muted-foreground">Por turma para melhor aprendizado</p>
               </CardContent>
             </Card>
@@ -64,7 +65,7 @@ const Cursos = () => {
               <CardContent className="p-6 text-center">
                 <Award className="h-12 w-12 text-primary mx-auto mb-4" />
                 <h3 className="text-2xl font-bold mb-2">Certificado</h3>
-                <p className="text-muted-foreground">Reconhecido nacionalmente</p>
+                <p className="text-muted-foreground">Reconhecido internacionalmente</p>
               </CardContent>
             </Card>
           </div>
@@ -123,14 +124,16 @@ const Cursos = () => {
                 Invista na sua carreira
               </h2>
               <p className="text-muted-foreground text-lg mb-4">
-                Investimento: <span className="text-3xl font-bold text-gradient">R$ 4.999,00</span>
+                Investimento: <span className="text-3xl font-bold text-gradient">R$ 1.999,00</span>
               </p>
               <p className="text-muted-foreground mb-8">
                 ou 12x de R$ 499,00 no cartão
               </p>
-              <Button size="lg" className="bg-gradient-primary hover:opacity-90 text-black font-bold text-lg px-8 py-6">
-                Inscrever-se Agora
-              </Button>
+              <Link to={`/contato?message=${encodeURIComponent("Olá, gostaria de me inscrever no Curso Profissional de Barbeiro. Poderiam, por favor, me informar sobre próximas turmas, formas de pagamento e lista de materiais necessários? Obrigado!")}`}>
+                <Button size="lg" className="bg-gradient-primary hover:opacity-90 text-white font-bold text-lg px-8 py-6">
+                  Inscrever-se Agora
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>
