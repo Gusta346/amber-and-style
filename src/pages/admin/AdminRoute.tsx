@@ -43,7 +43,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   if (loading) return <div className="py-20 text-center">Verificando acesso...</div>;
-  if (!isAdmin) return <Navigate to="/admin/login" replace />;
+  if (!isAdmin) return <Navigate to="/admin-portal-9f3b7/login" replace />;
   return <>{children}</>;
 };
 

@@ -13,7 +13,7 @@ const Navbar = () => {
     { name: "Produtos", path: "/produtos" },
     { name: "Cursos", path: "/cursos" },
     { name: "Assinatura", path: "/assinatura" },
-    { name: "Avaliações", path: "/avaliacoes" },
+    // Avaliações moved to homepage
     { name: "Contato", path: "/contato" },
   ];
 
@@ -51,7 +51,7 @@ const Navbar = () => {
                 )}
               </Link>
             ))}
-            <Link to="/admin/login" className="text-sm font-medium text-foreground hover:text-primary">Login</Link>
+            <Link to="/admin-portal-9f3b7/login" className="text-sm font-medium text-foreground hover:text-primary">Login</Link>
             <Link to="/agendamento">
               <Button className="btn-cta font-semibold hover-glow">
                 Agendar Horário
@@ -84,7 +84,7 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
-              <Link to="/admin/login" onClick={() => setIsOpen(false)} className="w-full text-center text-base font-medium text-foreground hover:text-primary">Login</Link>
+              <Link to="/admin-portal-9f3b7/login" onClick={() => setIsOpen(false)} className="w-full text-center text-base font-medium text-foreground hover:text-primary">Login</Link>
               <Link to="/agendamento" onClick={() => setIsOpen(false)}>
                 <Button className="w-full btn-cta font-semibold">
                   Agendar Horário

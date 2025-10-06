@@ -183,7 +183,7 @@ const Contato = () => {
             <div className="lg:col-span-2">
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-2xl">Envie uma mensagem</CardTitle>
+                  <CardTitle className="text-2xl text-white">Envie uma mensagem</CardTitle>
                   <CardDescription>
                     Preencha o formulário e entraremos em contato
                   </CardDescription>
@@ -250,7 +250,7 @@ const Contato = () => {
                     <Button
                       type="submit"
                       size="lg"
-                      className="w-full bg-gradient-primary hover:opacity-90 text-black font-bold"
+                      className="w-full bg-gradient-primary hover:opacity-90 text-white font-bold border border-2 border-gold"
                     >
                       Enviar Mensagem
                     </Button>
