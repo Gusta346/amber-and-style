@@ -68,7 +68,7 @@ const ReviewsBlock = () => {
         <Card className="bg-card border-border">
           <CardContent className="p-6 text-center">
             <CheckCircle className="h-10 w-10 text-primary mx-auto mb-3" />
-            <p className="text-4xl font-bold text-gradient mb-1">{allReviews?.filter((r: any) => r.verified).length || 0}</p>
+            <p className="text-4xl font-bold text-gradient mb-1">{(reviews?.length) || 0}</p>
             <p className="text-sm text-muted-foreground">Avaliações Verificadas</p>
           </CardContent>
         </Card>

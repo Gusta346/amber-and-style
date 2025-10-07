@@ -276,6 +276,12 @@ const Agendamento = () => {
         if (found) barberDbId = found.id;
       }
 
+      // Snapshot details for the chosen service or combo
+      const selectedService = services?.find((s: any) => s.id === formData.serviceId) || (combos as any)?.find((c: any) => c.id === formData.serviceId);
+      const snapshotName = selectedService?.name || null;
+      const snapshotPrice = (typeof selectedService?.price === 'number') ? Number(selectedService.price) : (selectedService?.price ? Number(selectedService.price) : null);
+      const barberSnapshotName = (barbers as any)?.find((bb: any) => bb.id === barberDbId)?.name || null;
+
       const { error } = await supabase.from("bookings").insert({
         client_name: formData.clientName,
         client_email: formData.clientEmail,
@@ -285,6 +291,9 @@ const Agendamento = () => {
         booking_date: format(date, "yyyy-MM-dd"),
         booking_time: formData.time,
         notes: formData.notes,
+        service_name: snapshotName,
+        service_price: snapshotPrice,
+        barber_name: barberSnapshotName,
       });
 
       if (error) throw error;
