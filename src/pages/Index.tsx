@@ -1,15 +1,21 @@
 import { Link } from "react-router-dom";
+import React, { useState } from 'react';
 import { ArrowRight, Star, Users, Award, Sparkles, CheckCircle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 // Inline Reviews block (extracted from Avaliacoes.tsx)
 const ReviewsBlock = () => {
-  const { data: reviews, isLoading } = useQuery({
-    queryKey: ["reviews"],
+  // One query for all reviews (stats) and one for featured (homepage list)
+  const { data: allReviews, isLoading: isLoadingAll } = useQuery({
+    queryKey: ["reviews-all"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("reviews")
@@ -19,13 +25,25 @@ const ReviewsBlock = () => {
       return data;
     },
   });
+  const { data: reviews, isLoading } = useQuery<any[]>({
+    queryKey: ["reviews-featured"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("reviews")
+        .select("*")
+        .eq('featured', true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
 
-  const totalReviews = reviews?.length || 0;
-  const averageRating = reviews?.reduce((acc: any, r: any) => acc + r.rating, 0) / totalReviews || 0;
+  const totalReviews = allReviews?.length || 0;
+  const averageRating = allReviews?.reduce((acc: any, r: any) => acc + r.rating, 0) / totalReviews || 0;
   const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => ({
     stars: rating,
-    count: reviews?.filter((r: any) => r.rating === rating).length || 0,
-    percentage: totalReviews > 0 ? ((reviews?.filter((r: any) => r.rating === rating).length || 0) / totalReviews) * 100 : 0,
+    count: allReviews?.filter((r: any) => r.rating === rating).length || 0,
+    percentage: totalReviews > 0 ? ((allReviews?.filter((r: any) => r.rating === rating).length || 0) / totalReviews) * 100 : 0,
   }));
 
   return (
@@ -50,7 +68,7 @@ const ReviewsBlock = () => {
         <Card className="bg-card border-border">
           <CardContent className="p-6 text-center">
             <CheckCircle className="h-10 w-10 text-primary mx-auto mb-3" />
-            <p className="text-4xl font-bold text-gradient mb-1">{reviews?.filter((r: any) => r.verified).length || 0}</p>
+            <p className="text-4xl font-bold text-gradient mb-1">{allReviews?.filter((r: any) => r.verified).length || 0}</p>
             <p className="text-sm text-muted-foreground">Avaliações Verificadas</p>
           </CardContent>
         </Card>
@@ -81,7 +99,7 @@ const ReviewsBlock = () => {
       <div>
         <h3 className="text-3xl font-bold mb-8 text-center">Depoimentos de <span className="text-gradient">Clientes</span></h3>
 
-        {isLoading ? (
+  {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
               <Card key={i} className="bg-card border-border">
@@ -129,6 +147,126 @@ const ReviewsBlock = () => {
         )}
       </div>
     </>
+  );
+};
+
+// Simple public review submission form for the Home page
+const ReviewFormBlock: React.FC = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [serviceType, setServiceType] = useState('');
+  const [barberId, setBarberId] = useState('');
+  const [comment, setComment] = useState('');
+  const [rating, setRating] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Load barbers for selection
+  const { data: barbers } = useQuery<any[]>({
+    queryKey: ['public-barbers'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('team_members').select('id, name').order('name');
+      if (error) throw error;
+      return (data as any[]) || [];
+    }
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { toast({ title: 'Informe seu nome', variant: 'destructive' }); return; }
+    if (rating < 1 || rating > 5) { toast({ title: 'Selecione uma nota de 1 a 5', variant: 'destructive' }); return; }
+    if (!comment.trim() || comment.trim().length < 5) { toast({ title: 'Escreva um comentário (mín. 5 caracteres)', variant: 'destructive' }); return; }
+
+    setSubmitting(true);
+    try {
+      const chosenBarber = (barbers || []).find(b => String(b.id) === String(barberId));
+      const payload: any = {
+        client_name: name.trim(),
+        client_phone: phone.trim() || null,
+        rating,
+        comment: comment.trim(),
+        service_type: serviceType.trim() || null,
+        barber_name: chosenBarber?.name || null,
+        featured: false,
+      };
+      const { error } = await (supabase as any).from('reviews').insert(payload).select();
+      if (error) throw error;
+
+  setName(''); setPhone(''); setServiceType(''); setBarberId(''); setComment(''); setRating(0);
+      // Update stats block
+      await queryClient.invalidateQueries({ queryKey: ['reviews-all'] });
+      toast({ title: 'Obrigado pela sua avaliação!', description: 'Ela passará por moderação e poderá aparecer na página inicial.' });
+    } catch (err: any) {
+      toast({ title: 'Erro ao enviar avaliação', description: err?.message || 'Tente novamente mais tarde.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-16 max-w-2xl mx-auto">
+      <h3 className="text-2xl font-bold mb-4 text-center">Deixe sua avaliação</h3>
+      <Card className="bg-card border-border">
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nome</Label>
+                <Input id="name" value={name} onChange={(e)=> setName(e.target.value)} placeholder="Seu nome" required />
+              </div>
+              <div>
+                <Label htmlFor="phone">Telefone (opcional)</Label>
+                <Input id="phone" value={phone} onChange={(e)=> setPhone(e.target.value)} placeholder="(xx) xxxxx-xxxx" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="service">Serviço (opcional)</Label>
+                <Input id="service" value={serviceType} onChange={(e)=> setServiceType(e.target.value)} placeholder="Ex.: Corte, Barba, Combo..." />
+              </div>
+              <div>
+                <Label htmlFor="barber">Barbeiro (opcional)</Label>
+                <select id="barber" value={barberId} onChange={(e)=> setBarberId(e.target.value)} className="w-full rounded border border-border p-2 bg-background">
+                  <option value="">Selecione um barbeiro</option>
+                  {(barbers || []).map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Nota</Label>
+                <div className="flex items-center gap-2 pt-2">
+                  {[1,2,3,4,5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className="p-1"
+                      onClick={()=> setRating(n)}
+                      aria-label={`Dar nota ${n}`}
+                    >
+                      <Star className={`h-6 w-6 ${n <= rating ? 'fill-primary text-primary' : 'text-muted-foreground'}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="comment">Comentário</Label>
+              <Textarea id="comment" value={comment} onChange={(e)=> setComment(e.target.value)} placeholder="Conte como foi sua experiência" rows={4} required />
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="submit" className="btn-cta" disabled={submitting}>
+                {submitting ? 'Enviando...' : 'Enviar avaliação'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 import Navbar from "@/components/Navbar";
@@ -302,6 +440,9 @@ const Index = () => {
 
           {/* Reviews & stats */}
           <ReviewsBlock />
+
+          {/* Public review submission */}
+          <ReviewFormBlock />
         </div>
       </section>
 

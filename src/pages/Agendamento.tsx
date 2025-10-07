@@ -19,6 +19,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const Agendamento = () => {
   const { toast } = useToast();
+  const [reviewPrompt, setReviewPrompt] = useState<{ name: string; phone: string } | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const navigate = useNavigate();
@@ -37,6 +41,19 @@ const Agendamento = () => {
   });
 
   const messageRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // On mount: show review prompt if there's a pending review flag in localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pending_review_prompt');
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v?.name && v?.phone) {
+          setReviewPrompt({ name: v.name, phone: v.phone });
+        }
+      }
+    } catch {}
+  }, []);
 
   const { data: services } = useQuery({
     queryKey: ["services"],
@@ -282,6 +299,31 @@ const Agendamento = () => {
 
       toast({ title: "Agendamento realizado!", description: "Seu horário foi agendado com sucesso. Entraremos em contato para confirmação." });
 
+      // Depois de agendar, verificar se o cliente tem um atendimento anterior concluído
+      try {
+        const name = formData.clientName.trim();
+        const phone = formData.clientPhone.trim();
+        if (name && phone) {
+          const { data: prev, error: prevErr } = await supabase
+            .from('bookings')
+            .select('id, status, booking_date, booking_time, service_id, barber_id')
+            .eq('client_name', name)
+            .eq('client_phone', phone)
+            .order('booking_date', { ascending: false })
+            .limit(5);
+          if (!prevErr) {
+            // Existe algum agendamento anterior marcado como completed/concluído?
+            const hadCompleted = (prev || []).some((b: any) => String(b.status || '').toLowerCase().startsWith('comp') || String(b.status || '').toLowerCase().startsWith('concl'));
+            if (hadCompleted) {
+              // Guardar uma flag local para mostrar um prompt de avaliação na próxima visita
+              try {
+                localStorage.setItem('pending_review_prompt', JSON.stringify({ name, phone, ts: Date.now() }));
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+
       // Reset form and go to step 1
       setFormData({ clientName: "", clientEmail: "", clientPhone: "", serviceId: "", barberId: "", time: "", notes: "" });
       setDate(undefined);
@@ -299,6 +341,70 @@ const Agendamento = () => {
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-4 max-w-4xl">
+          {reviewPrompt && (
+            <Card className="bg-card border-primary/30 mb-6">
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="text-sm">
+                    Você já foi atendido anteriormente. Gostaria de avaliar sua última consulta?
+                  </div>
+                  {!reviewOpen ? (
+                    <div className="flex gap-2">
+                      <Button className="btn-cta" onClick={() => setReviewOpen(true)}>Avaliar agora</Button>
+                      <Button variant="ghost" onClick={() => { try { localStorage.removeItem('pending_review_prompt'); } catch {}; setReviewPrompt(null); }}>Depois</Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="mb-1 block">Nota</Label>
+                        <div className="flex gap-1">
+                          {[1,2,3,4,5].map(n => (
+                            <button type="button" key={n} onClick={() => setReviewRating(n)} className={`px-2 py-1 rounded border ${reviewRating >= n ? 'bg-primary text-white' : 'bg-background border-border text-foreground'}`}>{n}★</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="mb-1 block">Comentário</Label>
+                        <Textarea value={reviewComment} onChange={(e)=> setReviewComment(e.target.value)} placeholder="Conte como foi sua experiência" className="bg-background border-border" rows={3} />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={async () => {
+                            if (!reviewPrompt) return;
+                            if (!reviewRating) { toast({ title: 'Informe uma nota', variant: 'destructive' }); return; }
+                            try {
+                              const { error } = await supabase.from('reviews').insert({
+                                client_name: reviewPrompt.name,
+                                client_phone: reviewPrompt.phone,
+                                rating: reviewRating,
+                                comment: reviewComment || 'Sem comentário',
+                                verified: false,
+                              });
+                              if (error) throw error;
+                              try { localStorage.removeItem('pending_review_prompt'); } catch {}
+                              setReviewPrompt(null);
+                              setReviewOpen(false);
+                              setReviewComment('');
+                              setReviewRating(5);
+                              toast({ title: 'Obrigado pela sua avaliação!' });
+                              try {
+                                await queryClient.invalidateQueries({ queryKey: ['reviews-all'] });
+                                await queryClient.invalidateQueries({ queryKey: ['reviews-featured'] });
+                              } catch {}
+                            } catch (err: any) {
+                              toast({ title: 'Erro ao enviar avaliação', description: String(err?.message || err), variant: 'destructive' });
+                            }
+                          }}
+                          className="btn-cta"
+                        >Enviar</Button>
+                        <Button variant="outline" onClick={() => setReviewOpen(false)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <div className="text-center mb-8">
             <h1 className="text-4xl md:text-5xl font-bold mb-2">
               <span className="text-gradient">Agendar Horário</span>

@@ -94,7 +94,7 @@ const Contato = () => {
                     <div>
                       <h3 className="font-semibold mb-1">Endereço</h3>
                       <p className="text-sm text-muted-foreground">
-                        Av. Paulista, 1000<br />
+                        Santa Cruz Do Descalvado<br />
                         São Paulo, SP<br />
                         CEP: 01310-100
                       </p>
@@ -159,7 +159,7 @@ const Contato = () => {
                   <h3 className="font-semibold mb-4">Redes Sociais</h3>
                   <div className="flex gap-3">
                     <a
-                      href="https://instagram.com"
+                      href="https://www.instagram.com/anderson_cortes_12/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-3 bg-muted hover:bg-primary hover:text-black rounded-lg transition-colors"

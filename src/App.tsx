@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminRoute from "./pages/admin/AdminRoute";
+import ScrollToTop from "./components/ScrollToTop";
 import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/servicos" element={<Servicos />} />

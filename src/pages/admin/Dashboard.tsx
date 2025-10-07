@@ -28,6 +28,8 @@ const AdminDashboard = () => {
 
   // barber filter state: '' means all
   const [barberFilter, setBarberFilter] = React.useState<string>('');
+  // show only today's bookings
+  const [onlyToday, setOnlyToday] = useState<boolean>(false);
 
   const { data: services } = useQuery({
     queryKey: ["admin-services"],
@@ -47,6 +49,95 @@ const AdminDashboard = () => {
     },
   });
 
+  // Recent contact messages
+  const { data: messages } = useQuery({
+    queryKey: ["admin-contact-messages"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_messages")
+        .select("id, created_at, name, email, phone, subject, message, status")
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Reviews moderation
+  const { data: adminReviews } = useQuery({
+    queryKey: ["admin-reviews"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('id, created_at, client_name, client_phone, rating, comment, featured, verified, service_type')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [revFeaturedFilter, setRevFeaturedFilter] = useState<'all' | 'featured' | 'unfeatured'>('all');
+  const [revQuery, setRevQuery] = useState('');
+
+  const filteredReviews = useMemo(() => {
+    let list = (adminReviews || []) as any[];
+    if (revFeaturedFilter !== 'all') {
+      const want = revFeaturedFilter === 'featured';
+      list = list.filter(r => Boolean(r.featured) === want);
+    }
+    if (revQuery.trim()) {
+      const q = revQuery.trim().toLowerCase();
+      list = list.filter(r => String(r.comment || '').toLowerCase().includes(q) || String(r.client_name || '').toLowerCase().includes(q));
+    }
+    return list;
+  }, [adminReviews, revFeaturedFilter, revQuery]);
+
+  const toggleFeatured = async (id: string, current: boolean) => {
+    const key = ['admin-reviews'];
+    const prev = queryClient.getQueryData<any[]>(key) || [];
+    queryClient.setQueryData<any[]>(key, (old = []) => (old || []).map(r => r.id === id ? { ...r, featured: !current } : r));
+  const { error } = await (supabase as any).from('reviews').update({ featured: !current } as any).eq('id', id);
+    if (error) {
+      queryClient.setQueryData<any[]>(key, prev);
+      toast({ title: 'Erro ao atualizar review', description: error.message, variant: 'destructive' });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
+
+  // Filters for messages
+  const [msgStatusFilter, setMsgStatusFilter] = useState<'all' | 'new' | 'lida'>('all');
+  const [msgSubjectQuery, setMsgSubjectQuery] = useState('');
+
+  const filteredMessages = useMemo(() => {
+    let list = (messages || []) as any[];
+    if (msgStatusFilter !== 'all') {
+      list = list.filter(m => String(m.status || 'new').toLowerCase() === (msgStatusFilter === 'lida' ? 'read' : 'new'));
+    }
+    if (msgSubjectQuery.trim()) {
+      const q = msgSubjectQuery.trim().toLowerCase();
+      list = list.filter(m => String(m.subject || '').toLowerCase().includes(q));
+    }
+    return list;
+  }, [messages, msgStatusFilter, msgSubjectQuery]);
+
+  const markMessageRead = async (id: string) => {
+    const key = ['admin-contact-messages'];
+    const prev = queryClient.getQueryData<any[]>(key) || [];
+    // optimistic update
+    queryClient.setQueryData<any[]>(key, (old = []) => (old || []).map(m => m.id === id ? { ...m, status: 'read' } : m));
+    const { error } = await supabase.from('contact_messages').update({ status: 'read' }).eq('id', id);
+    if (error) {
+      // revert
+      queryClient.setQueryData<any[]>(key, prev);
+      toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+    } else {
+      // refresh list to reflect filters
+      await queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
+
   const queryClient = useQueryClient();
 
   // modal state for mobile-friendly confirmations
@@ -56,6 +147,68 @@ const AdminDashboard = () => {
   const [modalReason, setModalReason] = useState('');
   const [confirming, setConfirming] = useState(false);
   const { toast } = useToast();
+  
+  // Helper to parse a booking row's local datetime safely
+  // Supports booking_date formats: 'YYYY-MM-DD', ISO strings with 'T', or 'DD/MM/YYYY'
+  // Supports booking_time formats: 'HH:MM' or 'HH:MM:SS' (may include timezone suffix which will be ignored)
+  const getBookingDateTime = (b: any) => {
+    try {
+      const rawDate = b.booking_date;
+      const dateStr = typeof rawDate === 'string' ? rawDate : (rawDate?.toString?.() || '');
+
+      let y = 0, m = 0, d = 0;
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        // e.g., 2025-10-06 or 2025-10-06T00:00:00Z
+        const isoDatePart = dateStr.slice(0, 10);
+        const [yy, mm, dd] = isoDatePart.split('-').map((n) => parseInt(n, 10));
+        y = yy; m = mm; d = dd;
+      } else if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+        // e.g., 06/10/2025 (DD/MM/YYYY)
+        const [dd, mm, yy] = dateStr.slice(0, 10).split('/').map((n) => parseInt(n, 10));
+        y = yy; m = mm; d = dd;
+      } else {
+        // Last resort: let Date parse and extract parts
+        const parsed = new Date(dateStr);
+        if (isNaN(parsed.getTime())) return null;
+        y = parsed.getFullYear();
+        m = parsed.getMonth() + 1;
+        d = parsed.getDate();
+      }
+
+      const timeStr = String(b.booking_time || '00:00');
+      // Strip any timezone suffix like +00 or Z for parsing seconds
+      const timeCore = timeStr.split(/[Z+\-]/)[0];
+      const tparts = timeCore.split(':').map((v: string) => parseInt(v, 10));
+      const hh = tparts[0] || 0;
+      const mi = tparts[1] || 0;
+      const ss = tparts[2] || 0;
+
+      // Construct local date to avoid timezone shifts
+      const dt = new Date(y, (m - 1), d, hh, mi, ss, 0);
+      if (isNaN(dt.getTime())) return null;
+      return dt;
+    } catch {
+      return null;
+    }
+  };
+  
+  const completeBooking = async (id: string) => {
+    const cacheKey = ['admin-bookings'];
+    const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+    // optimistic
+    queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).map(b => String(b.id) === String(id) ? { ...b, status: 'completed' } : b));
+    const { error } = await (supabase as any).from('bookings').update({ status: 'completed' } as any).eq('id', id);
+    if (error) {
+      queryClient.setQueryData<any[]>(cacheKey, prev);
+      toast({ title: 'Erro ao concluir', description: error.message, variant: 'destructive' });
+    } else {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cacheKey }),
+        queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
+      ]);
+      toast({ title: 'Atendimento concluído' });
+    }
+  };
 
   const stats = useMemo(() => {
     const all = bookings || [];
@@ -156,7 +309,7 @@ const AdminDashboard = () => {
             <Card className="p-4">
               <h3 className="font-semibold mb-2">Próximos agendamentos</h3>
 
-              <div className="mb-3">
+              <div className="mb-3 space-y-2">
                 <label className="block text-sm text-muted-foreground mb-1">Filtrar por barbeiro</label>
                 <select value={barberFilter} onChange={(e)=> setBarberFilter(e.target.value)} className="w-full rounded border border-border p-2 bg-background">
                   <option value="">Todos</option>
@@ -164,36 +317,138 @@ const AdminDashboard = () => {
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={onlyToday} onChange={(e)=> setOnlyToday(e.target.checked)} />
+                  Cortes de hoje
+                </label>
               </div>
-              <div className="space-y-3 max-h-80 overflow-auto">
+              <div className="space-y-3 max-h-[60vh] sm:max-h-80 overflow-auto">
                 {(bookings || [])
                   .filter((b: any) => (barberFilter ? (b.barber_id === barberFilter || b.barber_name === barberFilter) : true))
+                  .filter((b: any) => (onlyToday ? b.booking_date === today : true))
                   // hide canceled bookings from the list so they don't reappear after optimistic updates
                   .filter((b: any) => !String(b.status || '').toLowerCase().startsWith('cancel'))
                   .map((b: any) => (
                   <div key={b.id} className={`w-full bg-card border p-3 rounded-md hover:shadow-sm transition ${b.status && b.status.toLowerCase().startsWith('cancel') ? 'border-red-200' : b.status && (b.status.toLowerCase().startsWith('comp') || b.status.toLowerCase().startsWith('concl')) ? 'border-green-200' : 'border-blue-50'}`}>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden text-sm text-muted-foreground">{(b.client_name || '').split(' ').map((s:any)=>s[0]).slice(0,2).join('')}</div>
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-sm font-medium">{b.client_name} — {(() => { try { return format(new Date(b.booking_date), 'd/M/yyyy', { locale: ptBR }) } catch { return b.booking_date } })()} {b.booking_time}</div>
+                        <div className="w-12 h-12 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden text-sm text-muted-foreground">{(b.client_name || '').split(' ').map((s:any)=>s[0]).slice(0,2).join('')}</div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { return format(new Date(b.booking_date), 'd/M/yyyy', { locale: ptBR }) } catch { return b.booking_date } })()} {b.booking_time}</div>
                             <div className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-muted-foreground">{b.status ?? 'scheduled'}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
+                          <div className="text-xs text-muted-foreground truncate">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
                         </div>
                       </div>
 
-                      <div className="flex flex-col items-end sm:items-end gap-2">
-                        <div className="text-sm font-semibold">R$ {(b.service_price ?? (services || []).find((s:any)=> s.id===b.service_id)?.price ?? 0).toFixed(2)}</div>
-                        <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+                        <div className="text-sm font-semibold text-right sm:text-right">R$ {(b.service_price ?? (services || []).find((s:any)=> s.id===b.service_id)?.price ?? 0).toFixed(2)}</div>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full">
                           {!String(b.status || '').toLowerCase().startsWith('cancel') && (
-                            <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)}>Cancelar</Button>
+                            <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)} className="w-full sm:w-auto">Cancelar</Button>
                           )}
-                          {String(b.status || '').toLowerCase().startsWith('cancel') && <div className="text-xs text-red-600">Cancelado</div>}
+                          {/* Concluir removido por solicitação: manter apenas Cancelar */}
+                          {String(b.status || '').toLowerCase().startsWith('cancel') && <div className="text-xs text-red-600 text-center sm:text-right">Cancelado</div>}
                         </div>
                       </div>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Contact Messages */}
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Mensagens de Contato</h3>
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-muted-foreground mb-1">Buscar por assunto</label>
+                  <input value={msgSubjectQuery} onChange={(e)=> setMsgSubjectQuery(e.target.value)} placeholder="Digite um assunto" className="w-full rounded border border-border p-2 bg-background text-sm" />
+                </div>
+                <div className="w-full sm:w-48">
+                  <label className="block text-xs text-muted-foreground mb-1">Status</label>
+                  <select value={msgStatusFilter} onChange={(e)=> setMsgStatusFilter(e.target.value as any)} className="w-full rounded border border-border p-2 bg-background text-sm">
+                    <option value="all">Todos</option>
+                    <option value="new">Novos</option>
+                    <option value="lida">Lidas</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[50vh] overflow-auto">
+                {(filteredMessages || []).length === 0 && (
+                  <div className="text-sm text-muted-foreground">Nenhuma mensagem recebida ainda.</div>
+                )}
+                {(filteredMessages || []).map((m: any) => (
+                  <div key={m.id} className="border rounded p-3 bg-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{m.name || 'Sem nome'} — {(() => { try { return format(new Date(m.created_at), 'd/M HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
+                        <div className="text-xs text-muted-foreground truncate">{m.email || 'sem e-mail'} {m.phone ? `• ${m.phone}` : ''}</div>
+                        <div className="text-xs text-muted-foreground truncate">Assunto: {m.subject || '-'}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[10px] px-2 py-0.5 rounded bg-muted/10 text-muted-foreground uppercase">{m.status || 'new'}</div>
+                        {String(m.status || 'new').toLowerCase() !== 'read' && (
+                          <Button variant="secondary" size="sm" className="h-7 px-2" onClick={() => markMessageRead(m.id)}>Marcar como lida</Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm whitespace-pre-line break-words">{m.message}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Reviews moderation */}
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Avaliações de Clientes</h3>
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-muted-foreground mb-1">Buscar por texto ou nome</label>
+                  <input value={revQuery} onChange={(e)=> setRevQuery(e.target.value)} placeholder="Digite para filtrar" className="w-full rounded border border-border p-2 bg-background text-sm" />
+                </div>
+                <div className="w-full sm:w-56">
+                  <label className="block text-xs text-muted-foreground mb-1">Destaque</label>
+                  <select value={revFeaturedFilter} onChange={(e)=> setRevFeaturedFilter(e.target.value as any)} className="w-full rounded border border-border p-2 bg-background text-sm">
+                    <option value="all">Todos</option>
+                    <option value="featured">Destacados</option>
+                    <option value="unfeatured">Não destacados</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[50vh] overflow-auto">
+                {(filteredReviews || []).length === 0 && (
+                  <div className="text-sm text-muted-foreground">Nenhuma avaliação encontrada.</div>
+                )}
+                {(filteredReviews || []).map((r: any) => (
+                  <div key={r.id} className="border rounded p-3 bg-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            {[...Array(5)].map((_, i) => (
+                              <span key={i} className={`text-xs ${i < (r.rating || 0) ? 'text-primary' : 'text-muted-foreground'}`}>★</span>
+                            ))}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{(() => { try { return format(new Date(r.created_at), 'd/M HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
+                        </div>
+                        <div className="text-sm font-medium truncate">{r.client_name || 'Cliente'}</div>
+                        <div className="text-xs text-muted-foreground truncate">{r.client_phone || ''} {r.service_type ? `• ${r.service_type}` : ''}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant={r.featured ? 'secondary' : 'outline'} size="sm" className="h-7 px-2" onClick={() => toggleFeatured(r.id, !!r.featured)}>
+                          {r.featured ? 'Remover do Home' : 'Destaque no Home'}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm whitespace-pre-line break-words">{r.comment}</div>
                   </div>
                 ))}
               </div>

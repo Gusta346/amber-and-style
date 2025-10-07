@@ -124,10 +124,10 @@ const Cursos = () => {
                 Invista na sua carreira
               </h2>
               <p className="text-muted-foreground text-lg mb-4">
-                Investimento: <span className="text-3xl font-bold text-gradient">R$ 1.999,00</span>
+                Investimento: <span className="text-3xl font-bold text-gradient">R$&nbsp;1.999,00</span>
               </p>
               <p className="text-muted-foreground mb-8">
-                ou 12x de R$ 499,00 no cartão
+                ou 12x de <span className="whitespace-nowrap">R$&nbsp;499,00</span> no cartão
               </p>
               <Link to={`/contato?message=${encodeURIComponent("Olá, gostaria de me inscrever no Curso Profissional de Barbeiro. Poderiam, por favor, me informar sobre próximas turmas, formas de pagamento e lista de materiais necessários? Obrigado!")}`}>
                 <Button size="lg" className="bg-gradient-primary hover:opacity-90 text-white font-bold text-lg px-8 py-6">
