@@ -190,8 +190,25 @@ const ReviewFormBlock: React.FC = () => {
         barber_name: chosenBarber?.name || null,
         featured: false,
       };
-      const { error } = await (supabase as any).from('reviews').insert(payload).select();
-      if (error) throw error;
+      let { error } = await (supabase as any).from('reviews').insert(payload).select();
+      if (error) {
+        // If DB hasn't applied barber_name column yet, retry without it
+        if (String(error.message || '').toLowerCase().includes("barber_name")) {
+          const { error: retryErr } = await (supabase as any).from('reviews').insert({
+            client_name: payload.client_name,
+            client_phone: payload.client_phone,
+            rating: payload.rating,
+            comment: payload.comment,
+            service_type: payload.service_type,
+            featured: false,
+          }).select();
+          if (retryErr) throw retryErr;
+          // soft notify about pending migration
+          toast({ title: 'Avaliação enviada (sem barbeiro)', description: 'A coluna do barbeiro ainda não está no banco. Assim que a migration rodar, o campo será salvo.', variant: 'default' });
+        } else {
+          throw error;
+        }
+      }
 
   setName(''); setPhone(''); setServiceType(''); setBarberId(''); setComment(''); setRating(0);
       // Update stats block

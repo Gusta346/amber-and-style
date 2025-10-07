@@ -335,7 +335,7 @@ const AdminDashboard = () => {
                         <div className="w-12 h-12 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden text-sm text-muted-foreground">{(b.client_name || '').split(' ').map((s:any)=>s[0]).slice(0,2).join('')}</div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { return format(new Date(b.booking_date), 'd/M/yyyy', { locale: ptBR }) } catch { return b.booking_date } })()} {b.booking_time}</div>
+                            <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { const dt = getBookingDateTime(b); return dt ? format(dt, 'd/M/yyyy', { locale: ptBR }) : b.booking_date } catch { return b.booking_date } })()} {b.booking_time}</div>
                             <div className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-muted-foreground">{b.status ?? 'scheduled'}</div>
                           </div>
                           <div className="text-xs text-muted-foreground truncate">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
@@ -599,7 +599,19 @@ function MonthlyWeeklyBreakdown({ bookings }: { bookings: any[] }) {
     const counts = new Array(7).fill(0);
     bookings.forEach(b => {
       try {
-        const d = new Date(b.booking_date);
+        // Parse booking date/time locally like the main list
+        const d = (() => {
+          const raw = b.booking_date as any;
+          if (!raw) return null;
+          // Reuse simple parsing: support 'YYYY-MM-DD' or 'DD/MM/YYYY'
+          const s = String(raw);
+          let y=0,m=0,dv=0;
+          if (/^\d{4}-\d{2}-\d{2}/.test(s)) { const [yy,mm,dd] = s.slice(0,10).split('-').map((n)=>parseInt(n,10)); y=yy;m=mm;dv=dd; }
+          else if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) { const [dd,mm,yy] = s.slice(0,10).split('/').map((n)=>parseInt(n,10)); y=yy;m=mm;dv=dd; }
+          else { const t = new Date(s); if (isNaN(t.getTime())) return null; return t; }
+          return new Date(y, (m-1), dv, 0, 0, 0, 0);
+        })();
+        if (!d) return;
         // only count if in the week's interval and also within the current month
         if (d >= w.start && d <= w.end && d >= monthStart && d <= monthEnd) {
           const idx = getDay(d);
