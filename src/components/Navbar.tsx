@@ -76,7 +76,7 @@ const Navbar = () => {
                 <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-gradient-primary animate-fade-in" />
               )}
             </Link>
-            <Link to="/agendamento">
+            <Link to="/agendamento" onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
               <Button className="btn-cta font-semibold hover-glow">
                 Agendar Horário
               </Button>
@@ -118,7 +118,7 @@ const Navbar = () => {
               >
                 Perfil
               </Link>
-              <Link to="/agendamento" onClick={() => setIsOpen(false)}>
+              <Link to="/agendamento" onClick={() => { setIsOpen(false); window.dispatchEvent(new Event('show-whatsapp-hint')); }}>
                 <Button className="w-full btn-cta font-semibold">
                   Agendar Horário
                 </Button>

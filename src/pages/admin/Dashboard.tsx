@@ -142,8 +142,10 @@ const AdminDashboard = () => {
 
   // modal state for mobile-friendly confirmations
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalAction, setModalAction] = useState<'cancel' | null>(null);
+  const [modalAction, setModalAction] = useState<'cancel' | 'delete-message' | 'delete-review' | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
+  const [selectedReview, setSelectedReview] = useState<any | null>(null);
   const [modalReason, setModalReason] = useState('');
   const [confirming, setConfirming] = useState(false);
   const { toast } = useToast();
@@ -254,6 +256,25 @@ const AdminDashboard = () => {
     setSelectedBooking(null);
     setModalAction(null);
     setModalReason('');
+    setSelectedMessage(null);
+    setSelectedReview(null);
+  };
+
+  // Openers for delete actions
+  const deleteMessage = (id: string) => {
+    const row = (messages || []).find((m: any) => String(m.id) === String(id));
+    setSelectedMessage(row ?? null);
+    setModalAction('delete-message');
+    setModalReason('');
+    setModalOpen(true);
+  };
+
+  const deleteReview = (id: string) => {
+    const row = (adminReviews || []).find((r: any) => String(r.id) === String(id));
+    setSelectedReview(row ?? null);
+    setModalAction('delete-review');
+    setModalReason('');
+    setModalOpen(true);
   };
 
   return (
@@ -395,6 +416,7 @@ const AdminDashboard = () => {
                         {String(m.status || 'new').toLowerCase() !== 'read' && (
                           <Button variant="secondary" size="sm" className="h-7 px-2" onClick={() => markMessageRead(m.id)}>Marcar como lida</Button>
                         )}
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => deleteMessage(m.id)}>Excluir</Button>
                       </div>
                     </div>
                     <div className="mt-2 text-sm whitespace-pre-line break-words">{m.message}</div>
@@ -446,6 +468,7 @@ const AdminDashboard = () => {
                         <Button variant={r.featured ? 'secondary' : 'outline'} size="sm" className="h-7 px-2" onClick={() => toggleFeatured(r.id, !!r.featured)}>
                           {r.featured ? 'Remover do Home' : 'Destaque no Home'}
                         </Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => deleteReview(r.id)}>Excluir</Button>
                       </div>
                     </div>
                     <div className="mt-2 text-sm whitespace-pre-line break-words">{r.comment}</div>
@@ -467,24 +490,40 @@ const AdminDashboard = () => {
             <div className="max-w-2xl mx-auto">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="text-lg font-semibold">{modalAction === 'cancel' ? 'Confirmar cancelamento' : 'Confirmar ação'}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedBooking ? selectedBooking.client_name : 'Carregando...'}</p>
+                  <h3 className="text-lg font-semibold">
+                    {modalAction === 'cancel' && 'Confirmar cancelamento'}
+                    {modalAction === 'delete-message' && 'Excluir mensagem'}
+                    {modalAction === 'delete-review' && 'Excluir avaliação'}
+                  </h3>
+                  {modalAction === 'cancel' && (
+                    <p className="text-sm text-muted-foreground">{selectedBooking ? selectedBooking.client_name : 'Carregando...'}</p>
+                  )}
+                  {modalAction === 'delete-message' && (
+                    <p className="text-sm text-muted-foreground">{selectedMessage ? (selectedMessage.subject || 'Sem assunto') : 'Carregando...'}</p>
+                  )}
+                  {modalAction === 'delete-review' && (
+                    <p className="text-sm text-muted-foreground">{selectedReview ? (selectedReview.client_name || 'Cliente') : 'Carregando...'}</p>
+                  )}
                 </div>
                 <button className="text-sm text-muted-foreground" onClick={closeModal}>Fechar</button>
               </div>
 
               <div className="space-y-3">
-                <div className="text-sm">
-                  <div>Telefone: <span className="font-medium">{selectedBooking?.client_phone ?? 'não informado'}</span></div>
-                  {selectedBooking?.client_phone && (
-                    <button className="mt-1 text-xs text-primary underline" onClick={() => { navigator.clipboard?.writeText(selectedBooking.client_phone); /* fallback */ toast({ title: 'Telefone copiado', description: selectedBooking.client_phone }); }}>Copiar telefone</button>
-                  )}
-                </div>
+                {modalAction === 'cancel' && (
+                  <div className="text-sm">
+                    <div>Telefone: <span className="font-medium">{selectedBooking?.client_phone ?? 'não informado'}</span></div>
+                    {selectedBooking?.client_phone && (
+                      <button className="mt-1 text-xs text-primary underline" onClick={() => { navigator.clipboard?.writeText(selectedBooking.client_phone); /* fallback */ toast({ title: 'Telefone copiado', description: selectedBooking.client_phone }); }}>Copiar telefone</button>
+                    )}
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">Observação (opcional)</label>
-                  <textarea value={modalReason} onChange={(e)=> setModalReason(e.target.value)} className="w-full rounded border border-border p-2 bg-background h-20" />
-                </div>
+                {modalAction === 'cancel' && (
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-1">Observação (opcional)</label>
+                    <textarea value={modalReason} onChange={(e)=> setModalReason(e.target.value)} className="w-full rounded border border-border p-2 bg-background h-20" />
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button className="w-full px-4 py-2 rounded-md border border-border text-sm" onClick={closeModal}>Fechar</button>
@@ -492,59 +531,96 @@ const AdminDashboard = () => {
                     className={`w-full px-4 py-2 rounded-md btn-danger text-sm ${confirming ? 'opacity-60 cursor-wait' : ''}`}
                     disabled={confirming}
                     onClick={async () => {
-                      if (!selectedBooking || modalAction !== 'cancel' || confirming) return;
                       setConfirming(true);
-                      const cacheKey = ['admin-bookings'];
-                      const previous = queryClient.getQueryData<any[]>(cacheKey);
-
                       try {
-                        // optimistic remove from UI
-                        queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter(b => String(b.id) !== String(selectedBooking.id)));
-
-                        // Try to delete; if delete not permitted, fall back to marking canceled
-                        const delRes = await supabase.from('bookings').delete().eq('id', selectedBooking.id).select();
-                        // supabase-js returns { data, error }
-                        if (delRes.error) {
-                          // attempt fallback: update status to canceled
-                          const upRes = await supabase.from('bookings').update({ status: 'canceled', canceled_at: new Date().toISOString(), notes: (selectedBooking.notes ?? '') + '\nCancel reason: ' + modalReason }).eq('id', selectedBooking.id).select();
-                          if (upRes.error) {
-                            // revert optimistic change and notify
-                            queryClient.setQueryData(cacheKey, previous as any);
-                            const msg = upRes.error.message || delRes.error.message || 'Erro desconhecido';
-                            toast({ title: 'Erro ao cancelar', description: msg, variant: 'destructive' });
+                        if (modalAction === 'cancel') {
+                          if (!selectedBooking) { setConfirming(false); return; }
+                          const cacheKey = ['admin-bookings'];
+                          const previous = queryClient.getQueryData<any[]>(cacheKey);
+                          // optimistic remove from UI
+                          queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter(b => String(b.id) !== String(selectedBooking.id)));
+                          // Try to delete; if delete not permitted, fall back to marking canceled
+                          const delRes = await supabase.from('bookings').delete().eq('id', selectedBooking.id).select();
+                          if (delRes.error) {
+                            const upRes = await supabase.from('bookings').update({ status: 'canceled', canceled_at: new Date().toISOString(), notes: (selectedBooking.notes ?? '') + '\nCancel reason: ' + modalReason }).eq('id', selectedBooking.id).select();
+                            if (upRes.error) {
+                              queryClient.setQueryData(cacheKey, previous as any);
+                              const msg = upRes.error.message || delRes.error.message || 'Erro desconhecido';
+                              toast({ title: 'Erro ao cancelar', description: msg, variant: 'destructive' });
+                              setConfirming(false);
+                              return;
+                            }
+                          }
+                          await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: cacheKey }),
+                            queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
+                          ]);
+                          await queryClient.refetchQueries({ queryKey: ['admin-bookings'] });
+                          const fresh = queryClient.getQueryData<any[]>(['admin-bookings']) || [];
+                          const still = (fresh || []).find(b => String(b.id) === String(selectedBooking.id));
+                          if (still) {
+                            toast({ title: 'Cancelamento não persistiu', description: 'DELETE/UPDATE pode estar bloqueado por Row-Level Security. Verifique as policies no Supabase.', variant: 'destructive' });
+                          } else {
+                            toast({ title: 'Agendamento cancelado', description: 'O agendamento foi removido com sucesso.' });
+                          }
+                          closeModal();
+                        } else if (modalAction === 'delete-message') {
+                          if (!selectedMessage) { setConfirming(false); return; }
+                          const cacheKey = ['admin-contact-messages'];
+                          const previous = queryClient.getQueryData<any[]>(cacheKey);
+                          // optimistic remove
+                          queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter(m => String(m.id) !== String(selectedMessage.id)));
+                          const { error } = await supabase.from('contact_messages').delete().eq('id', selectedMessage.id);
+                          if (error) {
+                            queryClient.setQueryData<any[]>(cacheKey, previous as any);
+                            toast({ title: 'Erro ao excluir mensagem', description: error.message, variant: 'destructive' });
                             setConfirming(false);
                             return;
                           }
+                          await queryClient.invalidateQueries({ queryKey: cacheKey });
+                          await queryClient.refetchQueries({ queryKey: cacheKey });
+                          const fresh = queryClient.getQueryData<any[]>(cacheKey) || [];
+                          const still = (fresh || []).find(m => String(m.id) === String(selectedMessage.id));
+                          if (still) {
+                            toast({ title: 'Exclusão não persistiu', description: 'DELETE pode estar bloqueado por políticas (RLS) no Supabase.', variant: 'destructive' });
+                          } else {
+                            toast({ title: 'Mensagem excluída' });
+                          }
+                          closeModal();
+                        } else if (modalAction === 'delete-review') {
+                          if (!selectedReview) { setConfirming(false); return; }
+                          const cacheKey = ['admin-reviews'];
+                          const previous = queryClient.getQueryData<any[]>(cacheKey);
+                          // optimistic remove
+                          queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter(r => String(r.id) !== String(selectedReview.id)));
+                          const { error } = await supabase.from('reviews').delete().eq('id', selectedReview.id);
+                          if (error) {
+                            queryClient.setQueryData<any[]>(cacheKey, previous as any);
+                            toast({ title: 'Erro ao excluir avaliação', description: error.message, variant: 'destructive' });
+                            setConfirming(false);
+                            return;
+                          }
+                          await queryClient.invalidateQueries({ queryKey: cacheKey });
+                          await queryClient.refetchQueries({ queryKey: cacheKey });
+                          const fresh = queryClient.getQueryData<any[]>(cacheKey) || [];
+                          const still = (fresh || []).find(r => String(r.id) === String(selectedReview.id));
+                          if (still) {
+                            toast({ title: 'Exclusão não persistiu', description: 'DELETE pode estar bloqueado por políticas (RLS) no Supabase.', variant: 'destructive' });
+                          } else {
+                            toast({ title: 'Avaliação excluída' });
+                          }
+                          closeModal();
                         }
-
-                        // success (either deleted or marked canceled). Refresh relevant caches.
-                        await Promise.all([
-                          queryClient.invalidateQueries({ queryKey: cacheKey }),
-                          queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
-                        ]);
-
-                        // Refetch admin bookings to confirm the row is gone
-                        await queryClient.refetchQueries({ queryKey: ['admin-bookings'] });
-                        const fresh = queryClient.getQueryData<any[]>(['admin-bookings']) || [];
-                        const still = (fresh || []).find(b => String(b.id) === String(selectedBooking.id));
-                        if (still) {
-                          // Booking still exists after attempts: likely DB policy prevented delete/update.
-                          toast({ title: 'Cancelamento não persistiu', description: 'DELETE/UPDATE pode estar bloqueado por Row-Level Security. Verifique as policies no Supabase.', variant: 'destructive' });
-                        } else {
-                          toast({ title: 'Agendamento cancelado', description: 'O agendamento foi removido com sucesso.' });
-                        }
-
-                        closeModal();
                       } catch (err: any) {
-                        // revert optimistic change and show message
-                        queryClient.setQueryData(cacheKey, previous as any);
-                        toast({ title: 'Erro ao cancelar', description: String(err?.message || err), variant: 'destructive' });
+                        toast({ title: 'Erro', description: String(err?.message || err), variant: 'destructive' });
                       } finally {
                         setConfirming(false);
                       }
                     }}
                   >
-                    {confirming ? 'Cancelando...' : 'Confirmar cancelamento'}
+                    {confirming
+                      ? (modalAction === 'cancel' ? 'Cancelando...' : 'Excluindo...')
+                      : (modalAction === 'cancel' ? 'Confirmar cancelamento' : 'Confirmar exclusão')}
                   </button>
                 </div>
               </div>

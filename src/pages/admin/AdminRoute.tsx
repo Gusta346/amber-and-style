@@ -20,6 +20,14 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
+        // Temporary email whitelist for admin access
+        const emailWhitelist = ['gustavoribeiro4523@gmail.com'];
+        if (emailWhitelist.includes((user.email || '').toLowerCase())) {
+          if (mounted) setIsAdmin(true);
+          setLoading(false);
+          return;
+        }
+
         // Check admins table for this user id
         // admins table may not be typed in Database types; use any to avoid TS issues
         const { data, error } = await (supabase as any).from('admins').select('id').eq('user_id', user.id).limit(1);

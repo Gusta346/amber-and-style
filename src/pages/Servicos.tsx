@@ -104,7 +104,7 @@ const Servicos = () => {
                             </div>
 
                               <div className="mt-4 md:mt-0">
-                                <Link to={`/agendamento?serviceId=${service.id}`}>
+                                <Link to={`/agendamento?serviceId=${service.id}`} onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                                   <Button className="btn-cta">Agendar</Button>
                                 </Link>
                               </div>
@@ -141,7 +141,7 @@ const Servicos = () => {
                         {combo.original_price && <div className="text-sm text-muted-foreground line-through">R$ {Number(combo.original_price).toFixed(2)}</div>}
                         <div className="text-2xl font-bold">R$ {Number(combo.price).toFixed(2)}</div>
                         <div className="mt-2">
-                          <Link to={`/agendamento?comboId=${combo.id}`}>
+                          <Link to={`/agendamento?comboId=${combo.id}`} onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                             <Button className="btn-cta">Agendar Combo</Button>
                           </Link>
                         </div>

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { MapPin, Phone, Mail, Clock, Instagram, Facebook } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, Instagram, Facebook, Award, ShieldCheck, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -81,6 +81,52 @@ const Contato = () => {
               Estamos aqui para atender você. Fale conosco!
             </p>
           </div>
+
+          {/* Sobre nós */}
+          <section className="mb-16 max-w-6xl mx-auto">
+            <Card className="bg-card border-border overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2">
+                <div className="relative h-64 lg:h-full">
+                  <img
+                    src="/sobre.jpg"
+                    alt="Nossa equipe profissional"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent" />
+                </div>
+                <div className="p-8 lg:p-10">
+                  <h2 className="text-3xl font-bold mb-3">Sobre nós</h2>
+                  <p className="text-muted-foreground leading-relaxed mb-6">
+                    Na Anderson Cortes, entregamos uma experiência premium em cada detalhe: do primeiro atendimento ao acabamento final.
+                    Nossa equipe é formada por profissionais experientes, apaixonados por transformar o visual com técnica, estilo e cuidado.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-md bg-primary/15"><Award className="h-5 w-5 text-primary" /></div>
+                      <div>
+                        <p className="text-sm font-semibold">Excelência</p>
+                        <p className="text-xs text-muted-foreground">Padrão alto em corte, barba e atendimento</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-md bg-primary/15"><ShieldCheck className="h-5 w-5 text-primary" /></div>
+                      <div>
+                        <p className="text-sm font-semibold">Confiança</p>
+                        <p className="text-xs text-muted-foreground">Higiene, pontualidade e transparência</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-md bg-primary/15"><Users className="h-5 w-5 text-primary" /></div>
+                      <div>
+                        <p className="text-sm font-semibold">Atendimento Humano</p>
+                        <p className="text-xs text-muted-foreground">Serviço próximo e personalizado</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Contact Info */}

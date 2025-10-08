@@ -363,7 +363,7 @@ const Index = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Link to="/agendamento">
+              <Link to="/agendamento" onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                 <Button
                   size="lg"
                   className="btn-cta font-bold text-lg px-8 py-6 hover-glow"
@@ -433,7 +433,7 @@ const Index = () => {
               <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
                 Agende seu horário agora e descubra por que somos a barbearia premium mais procurada
               </p>
-              <Link to="/agendamento">
+              <Link to="/agendamento" onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                 <Button
                   size="lg"
                   className="btn-cta font-bold text-lg px-8 py-6"
