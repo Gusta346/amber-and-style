@@ -25,8 +25,10 @@ const Login: React.FC = () => {
   if (error) throw error;
   toast({ title: 'Login realizado!' });
   const from = (location.state as any)?.from as string | undefined;
-  if (from) {
+  if (from && from.startsWith('/agendamento')) {
     navigate(from, { replace: true });
+  } else {
+    navigate('/perfil', { replace: true });
   }
     } catch (err: any) {
       toast({ title: 'Erro no login', description: String(err?.message || err), variant: 'destructive' });

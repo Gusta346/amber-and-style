@@ -140,6 +140,71 @@ const AdminDashboard = () => {
 
   const queryClient = useQueryClient();
 
+  // Students (Aluno) management
+  const { data: students, isLoading: studentsLoading } = useQuery({
+    queryKey: ["admin-students"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("student_enrollments")
+        .select("id, email, created_at")
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data as any[]) as Array<{ id: string; email: string; created_at: string }>;
+    },
+  });
+
+  const [newStudentEmail, setNewStudentEmail] = useState("");
+  const [addingStudent, setAddingStudent] = useState(false);
+
+  const addStudent = async () => {
+    const raw = (newStudentEmail || "").trim();
+    if (!raw) {
+      toast({ title: 'Informe um e-mail', variant: 'destructive' });
+      return;
+    }
+    // Simple e-mail check
+    const email = raw.toLowerCase();
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(email)) {
+      toast({ title: 'E-mail inválido', description: 'Digite um e-mail no formato nome@dominio.com', variant: 'destructive' });
+      return;
+    }
+    setAddingStudent(true);
+    try {
+  const { data, error } = await (supabase as any).from('student_enrollments').insert({ email }).select().single();
+      if (error) throw error;
+      toast({ title: 'Aluno adicionado', description: email });
+      setNewStudentEmail("");
+      await queryClient.invalidateQueries({ queryKey: ['admin-students'] });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      // unique violation friendly msg
+      const desc = msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique') ? 'Este e-mail já está cadastrado como aluno.' : msg;
+      toast({ title: 'Não foi possível adicionar', description: desc, variant: 'destructive' });
+    } finally {
+      setAddingStudent(false);
+    }
+  };
+
+  const removeStudent = async (id: string) => {
+    try {
+      const cacheKey = ['admin-students'];
+      const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+      // optimistic remove
+      queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter((s: any) => String(s.id) !== String(id)));
+  const { error } = await (supabase as any).from('student_enrollments').delete().eq('id', id);
+      if (error) {
+        queryClient.setQueryData<any[]>(cacheKey, prev);
+        toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+      } else {
+        await queryClient.invalidateQueries({ queryKey: cacheKey });
+        toast({ title: 'Aluno removido' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: String(err?.message || err), variant: 'destructive' });
+    }
+  };
+
   // modal state for mobile-friendly confirmations
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState<'cancel' | 'delete-message' | 'delete-review' | null>(null);
@@ -232,9 +297,10 @@ const AdminDashboard = () => {
     return { todayCount, monthCount, revenue, perBarber };
   }, [bookings, services, barbers, today, monthStart]);
 
-  const logout = () => {
+  const logout = async () => {
+    try { await supabase.auth.signOut(); } catch {}
     localStorage.removeItem("admin_token");
-    navigate("/");
+    navigate("/login", { replace: true });
   };
 
   // quick helper: detect presence of the local admin token (legacy) so we can show guidance
@@ -320,9 +386,9 @@ const AdminDashboard = () => {
                 ))}
               </div>
 
-              {/* Weekly breakdown for the current month */}
+              {/* Monthly breakdown for the current month */}
               <div className="mt-4">
-                <h4 className="text-sm font-medium mb-2">Cortes por semana no mês</h4>
+                <h4 className="text-sm font-medium mb-2">Cortes no mês</h4>
                 <MonthlyWeeklyBreakdown bookings={bookings || []} />
               </div>
             </Card>
@@ -347,8 +413,12 @@ const AdminDashboard = () => {
                 {(bookings || [])
                   .filter((b: any) => (barberFilter ? (b.barber_id === barberFilter || b.barber_name === barberFilter) : true))
                   .filter((b: any) => (onlyToday ? b.booking_date === today : true))
-                  // hide canceled bookings from the list so they don't reappear after optimistic updates
-                  .filter((b: any) => !String(b.status || '').toLowerCase().startsWith('cancel'))
+                  // hide cancelled bookings from the list so they don't reappear after optimistic updates
+                  .filter((b: any) => {
+                    const s = String(b.status || '').toLowerCase();
+                    // exclude cancelled and completed/concluído
+                    return !(s.startsWith('cancel')) && !s.startsWith('comp') && !s.startsWith('concl');
+                  })
                   .map((b: any) => (
                   <div key={b.id} className={`w-full bg-card border p-3 rounded-md hover:shadow-sm transition ${b.status && b.status.toLowerCase().startsWith('cancel') ? 'border-red-200' : b.status && (b.status.toLowerCase().startsWith('comp') || b.status.toLowerCase().startsWith('concl')) ? 'border-green-200' : 'border-blue-50'}`}>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -366,13 +436,53 @@ const AdminDashboard = () => {
                       <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
                         <div className="text-sm font-semibold text-right sm:text-right">R$ {(b.service_price ?? (services || []).find((s:any)=> s.id===b.service_id)?.price ?? 0).toFixed(2)}</div>
                         <div className="flex flex-col sm:flex-row gap-2 w-full">
-                          {!String(b.status || '').toLowerCase().startsWith('cancel') && (
-                            <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)} className="w-full sm:w-auto">Cancelar</Button>
+                          {/* Actions only when not cancelled or completed */}
+                          {(() => { const s = String(b.status || '').toLowerCase(); return !s.startsWith('cancel') && !s.startsWith('comp') && !s.startsWith('concl'); })() && (
+                            <>
+                              <Button variant="secondary" size="sm" onClick={() => completeBooking(b.id)} className="w-full sm:w-auto">Concluir</Button>
+                              <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)} className="w-full sm:w-auto">Cancelar</Button>
+                            </>
                           )}
-                          {/* Concluir removido por solicitação: manter apenas Cancelar */}
                           {String(b.status || '').toLowerCase().startsWith('cancel') && <div className="text-xs text-red-600 text-center sm:text-right">Cancelado</div>}
                         </div>
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Students (Aluno) management */}
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Alunos (Área do Curso)</h3>
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <input
+                  type="email"
+                  value={newStudentEmail}
+                  onChange={(e) => setNewStudentEmail(e.target.value)}
+                  placeholder="E-mail do aluno"
+                  className="w-full rounded border border-border p-2 bg-background text-sm"
+                />
+                <Button onClick={addStudent} disabled={addingStudent} className="w-full sm:w-auto">
+                  {addingStudent ? 'Adicionando…' : 'Adicionar' }
+                </Button>
+              </div>
+
+              <div className="space-y-2 max-h-[50vh] overflow-auto">
+                {studentsLoading && <div className="text-sm text-muted-foreground">Carregando alunos…</div>}
+                {!studentsLoading && (!students || students.length === 0) && (
+                  <div className="text-sm text-muted-foreground">Nenhum aluno cadastrado ainda.</div>
+                )}
+                {(students || []).map((s: any) => (
+                  <div key={s.id} className="border rounded p-3 bg-card flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.email}</div>
+                      <div className="text-xs text-muted-foreground truncate">desde {(() => { try { return format(new Date(s.created_at), 'd/M/yyyy HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => removeStudent(s.id)}>Remover</Button>
                     </div>
                   </div>
                 ))}
@@ -539,30 +649,20 @@ const AdminDashboard = () => {
                           const previous = queryClient.getQueryData<any[]>(cacheKey);
                           // optimistic remove from UI
                           queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter(b => String(b.id) !== String(selectedBooking.id)));
-                          // Try to delete; if delete not permitted, fall back to marking canceled
-                          const delRes = await supabase.from('bookings').delete().eq('id', selectedBooking.id).select();
-                          if (delRes.error) {
-                            const upRes = await supabase.from('bookings').update({ status: 'canceled', canceled_at: new Date().toISOString(), notes: (selectedBooking.notes ?? '') + '\nCancel reason: ' + modalReason }).eq('id', selectedBooking.id).select();
-                            if (upRes.error) {
-                              queryClient.setQueryData(cacheKey, previous as any);
-                              const msg = upRes.error.message || delRes.error.message || 'Erro desconhecido';
-                              toast({ title: 'Erro ao cancelar', description: msg, variant: 'destructive' });
-                              setConfirming(false);
-                              return;
-                            }
+                          // Always mark as canceled with observation; no DELETE to keep history
+                          const upRes = await supabase.from('bookings').update({ status: 'cancelled', canceled_at: new Date().toISOString(), notes: ((selectedBooking.notes ?? '') + (modalReason ? ('\nObservação: ' + modalReason) : '')).trim() }).eq('id', selectedBooking.id).select();
+                          if (upRes.error) {
+                            queryClient.setQueryData(cacheKey, previous as any);
+                            toast({ title: 'Erro ao cancelar', description: upRes.error.message, variant: 'destructive' });
+                            setConfirming(false);
+                            return;
                           }
                           await Promise.all([
                             queryClient.invalidateQueries({ queryKey: cacheKey }),
                             queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
                           ]);
                           await queryClient.refetchQueries({ queryKey: ['admin-bookings'] });
-                          const fresh = queryClient.getQueryData<any[]>(['admin-bookings']) || [];
-                          const still = (fresh || []).find(b => String(b.id) === String(selectedBooking.id));
-                          if (still) {
-                            toast({ title: 'Cancelamento não persistiu', description: 'DELETE/UPDATE pode estar bloqueado por Row-Level Security. Verifique as policies no Supabase.', variant: 'destructive' });
-                          } else {
-                            toast({ title: 'Agendamento cancelado', description: 'O agendamento foi removido com sucesso.' });
-                          }
+                          toast({ title: 'Agendamento cancelado', description: 'Status atualizado para cancelado.' });
                           closeModal();
                         } else if (modalAction === 'delete-message') {
                           if (!selectedMessage) { setConfirming(false); return; }
@@ -641,7 +741,7 @@ export default AdminDashboard;
 function MonthlyWeeklyBreakdown({ bookings }: { bookings: any[] }) {
   const daysShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
-  // Track 'now' so component can auto-update at midnight and switch month/week automatically
+  // Track 'now' so component can auto-update at midnight and switch month automatically
   const [now, setNow] = React.useState<Date>(() => new Date());
   React.useEffect(() => {
     // compute ms until next local midnight + 2 seconds buffer
@@ -658,69 +758,55 @@ function MonthlyWeeklyBreakdown({ bookings }: { bookings: any[] }) {
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
 
-  // Build weeks: each week starts on Sunday (startOfWeek default)
-  const weeks: { start: Date; end: Date; label: string }[] = [];
-  let cursor = startOfWeek(monthStart, { weekStartsOn: 0 });
-  let weekIndex = 1;
-  while (cursor <= monthEnd) {
-    const start = new Date(cursor);
-    const end = addDays(start, 6);
-    weeks.push({ start, end, label: `Semana ${weekIndex}` });
-    cursor = addDays(cursor, 7);
-    weekIndex += 1;
-  }
-
-  // For each week compute counts per weekday
-  const weeksCounts = weeks.map(w => {
-    const counts = new Array(7).fill(0);
-    bookings.forEach(b => {
-      try {
-        // Parse booking date/time locally like the main list
-        const d = (() => {
-          const raw = b.booking_date as any;
-          if (!raw) return null;
-          // Reuse simple parsing: support 'YYYY-MM-DD' or 'DD/MM/YYYY'
-          const s = String(raw);
-          let y=0,m=0,dv=0;
-          if (/^\d{4}-\d{2}-\d{2}/.test(s)) { const [yy,mm,dd] = s.slice(0,10).split('-').map((n)=>parseInt(n,10)); y=yy;m=mm;dv=dd; }
-          else if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) { const [dd,mm,yy] = s.slice(0,10).split('/').map((n)=>parseInt(n,10)); y=yy;m=mm;dv=dd; }
-          else { const t = new Date(s); if (isNaN(t.getTime())) return null; return t; }
-          return new Date(y, (m-1), dv, 0, 0, 0, 0);
-        })();
-        if (!d) return;
-        // only count if in the week's interval and also within the current month
-        if (d >= w.start && d <= w.end && d >= monthStart && d <= monthEnd) {
-          const idx = getDay(d);
-          counts[idx] = counts[idx] + 1;
+  // Compute counts per weekday for the entire current month
+  const counts = new Array(7).fill(0);
+  bookings.forEach((b) => {
+    try {
+      const d = (() => {
+        const raw = b.booking_date as any;
+        if (!raw) return null;
+        const s = String(raw);
+        let y = 0, m = 0, dv = 0;
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+          const [yy, mm, dd] = s.slice(0, 10).split('-').map((n) => parseInt(n, 10));
+          y = yy; m = mm; dv = dd;
+        } else if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+          const [dd, mm, yy] = s.slice(0, 10).split('/').map((n) => parseInt(n, 10));
+          y = yy; m = mm; dv = dd;
+        } else {
+          const t = new Date(s);
+          if (isNaN(t.getTime())) return null;
+          return t;
         }
-      } catch (e) {
-        // ignore parse errors
+        return new Date(y, m - 1, dv, 0, 0, 0, 0);
+      })();
+      if (!d) return;
+      if (d >= monthStart && d <= monthEnd) {
+        const idx = getDay(d);
+        counts[idx] = counts[idx] + 1;
       }
-    });
-    return counts;
+    } catch {}
   });
+
+  const total = counts.reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-3">
-      {weeks.map((w, i) => (
-        <div key={i} className="p-2 border border-border rounded">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-medium">{w.label} <span className="text-xs text-muted-foreground">({format(w.start, 'd/MM')} - {format(w.end, 'd/MM')})</span></div>
-            <div className="text-sm text-muted-foreground">Total: {weeksCounts[i].reduce((a,b)=>a+b,0)}</div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-2 text-center text-xs">
-            {daysShort.map((dShort, idx) => (
-              <div key={idx} className="flex flex-col items-center">
-                <div className="text-muted-foreground text-[10px]">{dShort}</div>
-                <div className="font-semibold">{weeksCounts[i][idx]}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* compact grid above shows counts per weekday; removed redundant inline summary */}
+      <div className="p-2 border border-border rounded">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-medium">Este mês <span className="text-xs text-muted-foreground">({format(monthStart, 'd/MM')} - {format(monthEnd, 'd/MM')})</span></div>
+          <div className="text-sm text-muted-foreground">Total: {total}</div>
         </div>
-      ))}
+
+        <div className="grid grid-cols-7 gap-2 text-center text-xs">
+          {daysShort.map((dShort, idx) => (
+            <div key={idx} className="flex flex-col items-center">
+              <div className="text-muted-foreground text-[10px]">{dShort}</div>
+              <div className="font-semibold">{counts[idx]}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

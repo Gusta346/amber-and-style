@@ -20,6 +20,7 @@ const Perfil: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isStudent, setIsStudent] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,19 +53,35 @@ const Perfil: React.FC = () => {
     })();
   }, [userId]);
 
+  // Check student enrollment by email
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!email) { setIsStudent(false); return; }
+        const { data, error } = await (supabase as any)
+          .from('student_enrollments')
+          .select('id')
+          .eq('email', email)
+          .limit(1);
+        if (error) { setIsStudent(false); return; }
+        setIsStudent(Array.isArray(data) && data.length > 0);
+      } catch { setIsStudent(false); }
+    })();
+  }, [email]);
+
   const { data: myBookings, isLoading } = useQuery({
     queryKey: ['my-bookings', userId],
     enabled: !!userId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('bookings')
-        .select('id, booking_date, booking_time, service_name, service_price, barber_name, status')
+        .select('id, booking_date, booking_time, service_name, service_price, barber_name, status, notes')
         .eq('user_id', userId)
         .order('booking_date', { ascending: false })
         .order('booking_time', { ascending: false })
         .limit(10);
       if (error) throw error;
-      return (data as unknown) as Array<{ id: string; booking_date: string; booking_time: string; service_name: string | null; service_price: number | null; barber_name: string | null; status: string | null }>;
+      return (data as unknown) as Array<{ id: string; booking_date: string; booking_time: string; service_name: string | null; service_price: number | null; barber_name: string | null; status: string | null; notes?: string | null }>;
     },
   });
 
@@ -94,6 +111,31 @@ const Perfil: React.FC = () => {
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {isStudent && (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle>Área do Aluno</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 text-sm text-muted-foreground mb-4">
+                      <p>Bem-vindo à sua área de estudos! Aqui você acompanha os módulos do seu curso e seu progresso.</p>
+                    </div>
+                    {/* Módulos estáticos por enquanto; futuramente podemos carregar de uma tabela 'course_modules' */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[{title:'Módulo 1: Fundamentos do Corte', desc:'Técnicas básicas, ergonomia e ferramentas'},
+                        {title:'Módulo 2: Estilos Modernos', desc:'Skin fade, navalhado e acabamentos'},
+                        {title:'Módulo 3: Barba & Acabamento', desc:'Design de barba, tesoura e navalha'},
+                        {title:'Módulo 4: Experiência do Cliente', desc:'Atendimento, higiene e fidelização'}].map((m, idx) => (
+                        <div key={idx} className="p-4 border border-border rounded-md bg-background">
+                          <div className="font-semibold mb-1">{m.title}</div>
+                          <div className="text-xs text-muted-foreground mb-2">{m.desc}</div>
+                          <div className="text-[11px] px-2 py-1 rounded bg-muted/10 inline-block">Status: Em breve</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle>Meus últimos agendamentos</CardTitle>
@@ -107,18 +149,35 @@ const Perfil: React.FC = () => {
                     <div className="space-y-3">
                       {myBookings.map((b) => {
                         const dateLabel = b.booking_date ? format(new Date(b.booking_date + 'T00:00:00'), "dd 'de' MMMM yyyy", { locale: ptBR }) : '—';
+                        const s = String(b.status || 'agendado').toLowerCase();
+                        const statusLabel = s.startsWith('comp') || s.startsWith('concl') ? 'Concluído' : s.startsWith('cancel') ? 'Cancelado' : (b.status || 'Agendado');
+                        let obs: string | null = null;
+                        if (s.startsWith('cancel') && b.notes) {
+                          const idx = b.notes.toLowerCase().indexOf('observação:');
+                          if (idx >= 0) {
+                            obs = b.notes.substring(idx + 'observação:'.length).trim();
+                          } else {
+                            obs = b.notes.trim();
+                          }
+                          if (obs === '') obs = null;
+                        }
                         return (
-                          <div key={b.id} className="p-3 rounded-md border border-border bg-background flex items-center justify-between gap-3">
-                            <div>
-                              <div className="font-medium">{b.service_name || 'Serviço'}</div>
-                              <div className="text-xs text-muted-foreground">{dateLabel} às {b.booking_time || '—'} • {b.barber_name || 'Barbeiro'}</div>
+                          <div key={b.id} className="p-3 rounded-md border border-border bg-background flex flex-col gap-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="font-medium">{b.service_name || 'Serviço'}</div>
+                                <div className="text-xs text-muted-foreground">{dateLabel} às {b.booking_time || '—'} • {b.barber_name || 'Barbeiro'}</div>
+                              </div>
+                              <div className="text-right">
+                                {typeof b.service_price === 'number' && (
+                                  <div className="text-sm">R$ {b.service_price.toFixed(2)}</div>
+                                )}
+                                <div className={`text-[11px] inline-block px-2 py-0.5 rounded ${s.startsWith('comp') || s.startsWith('concl') ? 'bg-green-100 text-green-700' : s.startsWith('cancel') ? 'bg-red-100 text-red-700' : 'bg-muted/10 text-muted-foreground'}`}>{statusLabel}</div>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              {typeof b.service_price === 'number' && (
-                                <div className="text-sm">R$ {b.service_price.toFixed(2)}</div>
-                              )}
-                              <div className="text-xs text-muted-foreground">{(b.status || 'agendado').toString()}</div>
-                            </div>
+                            {obs && (
+                              <div className="text-xs text-muted-foreground">Obs: {obs}</div>
+                            )}
                           </div>
                         );
                       })}
