@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useLocation, useNavigate } from "react-router-dom";
+import { supabase as sb } from '@/integrations/supabase/client';
 
 const Agendamento = () => {
   const { toast } = useToast();
@@ -31,18 +32,16 @@ const Agendamento = () => {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   const [formData, setFormData] = useState({
-    clientName: "",
-    clientEmail: "",
-    clientPhone: "",
     serviceId: "",
     barberId: "",
     time: "",
     notes: "",
   });
+  const [authedUser, setAuthedUser] = useState<{ id: string; email: string; name: string; phone: string } | null>(null);
 
   const messageRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // On mount: show review prompt if there's a pending review flag in localStorage
+  // On mount: fetch auth user + show review prompt if there's a pending review flag in localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem('pending_review_prompt');
@@ -53,6 +52,13 @@ const Agendamento = () => {
         }
       }
     } catch {}
+    (async () => {
+      const { data } = await sb.auth.getUser();
+      const user = data.user;
+      if (user) {
+        setAuthedUser({ id: user.id, email: user.email || '', name: (user.user_metadata as any)?.name || '', phone: (user.user_metadata as any)?.phone || '' });
+      }
+    })();
   }, []);
 
   const { data: services } = useQuery({
@@ -250,12 +256,8 @@ const Agendamento = () => {
       toast({ title: "Barbeiro e horário", description: "Selecione barbeiro e horário.", variant: "destructive" });
       return;
     }
-    if (currentStep === 4 && (!formData.clientName || !formData.clientPhone)) {
-      toast({ title: "Dados pessoais", description: "Preencha nome e telefone.", variant: "destructive" });
-      return;
-    }
-
-    setCurrentStep((s) => Math.min(5, s + 1));
+    // Avança até o último passo (4 no total)
+    setCurrentStep((s) => Math.min(4, s + 1));
   };
 
   const handleBack = () => setCurrentStep((s) => Math.max(1, s - 1));
@@ -265,6 +267,11 @@ const Agendamento = () => {
 
     if (!date || !formData.serviceId || !formData.barberId || !formData.time) {
       toast({ title: "Erro", description: "Por favor, preencha todos os campos obrigatórios.", variant: "destructive" });
+      return;
+    }
+    if (!authedUser || !authedUser.name || !authedUser.phone) {
+      toast({ title: 'Complete seu perfil', description: 'Atualize seu nome e telefone em Perfil antes de agendar.', variant: 'destructive' });
+      navigate('/perfil');
       return;
     }
 
@@ -283,9 +290,10 @@ const Agendamento = () => {
       const barberSnapshotName = (barbers as any)?.find((bb: any) => bb.id === barberDbId)?.name || null;
 
       const { error } = await supabase.from("bookings").insert({
-        client_name: formData.clientName,
-        client_email: formData.clientEmail,
-        client_phone: formData.clientPhone,
+        user_id: authedUser.id,
+        client_name: authedUser.name,
+        client_email: authedUser.email,
+        client_phone: authedUser.phone,
         service_id: formData.serviceId,
         barber_id: barberDbId,
         booking_date: format(date, "yyyy-MM-dd"),
@@ -310,8 +318,8 @@ const Agendamento = () => {
 
       // Depois de agendar, verificar se o cliente tem um atendimento anterior concluído
       try {
-        const name = formData.clientName.trim();
-        const phone = formData.clientPhone.trim();
+  const name = authedUser.name.trim();
+  const phone = authedUser.phone.trim();
         if (name && phone) {
           const { data: prev, error: prevErr } = await supabase
             .from('bookings')
@@ -334,7 +342,7 @@ const Agendamento = () => {
       } catch {}
 
       // Reset form and go to step 1
-      setFormData({ clientName: "", clientEmail: "", clientPhone: "", serviceId: "", barberId: "", time: "", notes: "" });
+      setFormData({ serviceId: "", barberId: "", time: "", notes: "" });
       setDate(undefined);
       setCurrentStep(1);
       // optionally navigate back to home or a success page
@@ -423,7 +431,7 @@ const Agendamento = () => {
 
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-2xl">Agendamento - Passo {currentStep} de 5</CardTitle>
+              <CardTitle className="text-2xl">Agendamento - Passo {currentStep} de 4</CardTitle>
               <CardDescription>Selecione as opções e confirme seu horário</CardDescription>
             </CardHeader>
             <CardContent>
@@ -582,28 +590,7 @@ const Agendamento = () => {
                 </div>
               )}
 
-              {currentStep === 4 && (
-                <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Nome Completo *</Label>
-                    <Input id="name" value={formData.clientName} onChange={(e) => setFormData((p) => ({ ...p, clientName: e.target.value }))} required className="bg-background border-border" />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Telefone *</Label>
-                    <Input id="phone" type="tel" value={formData.clientPhone} onChange={(e) => setFormData((p) => ({ ...p, clientPhone: e.target.value }))} required className="bg-background border-border" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">E-mail (opcional)</Label>
-                    <Input id="email" type="email" value={formData.clientEmail} onChange={(e) => setFormData((p) => ({ ...p, clientEmail: e.target.value }))} className="bg-background border-border" />
-                  </div>
-                  <div>
-                    <Label htmlFor="notes">Observações</Label>
-                    <Textarea id="notes" ref={(el) => (messageRef.current = el)} value={formData.notes} onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))} placeholder="Alguma preferência ou observação?" className="bg-background border-border" rows={3} />
-                  </div>
-                </form>
-              )}
-
-              {currentStep === 5 && (() => {
+              {currentStep === 4 && (() => {
                 const selectedService = services?.find(s => s.id === formData.serviceId) || combos?.find((c: any) => c.id === formData.serviceId);
                 const selectedBarber = (barbers && barbers.find(b => b.id === formData.barberId)) || (formData.barberId && { name: String(formData.barberId) });
                 const formattedDate = date ? format(date, "dd 'de' MMMM yyyy", { locale: ptBR }) : '—';
@@ -647,18 +634,26 @@ const Agendamento = () => {
                             </div>
                             <div>
                               <div className="text-xs text-muted-foreground">Cliente</div>
-                              <div className="font-medium">{formData.clientName || '—'}</div>
+                              <div className="font-medium">{authedUser?.name || '—'}</div>
                             </div>
                           </div>
 
                           <div className="mb-3">
                             <div className="text-xs text-muted-foreground">Telefone</div>
-                            <div className="font-medium">{formData.clientPhone || '—'}</div>
+                            <div className="font-medium">{authedUser?.phone || '—'}</div>
                           </div>
 
                           <div>
-                            <div className="text-xs text-muted-foreground">Observações</div>
-                            <div className="text-sm">{formData.notes || 'Nenhuma observação'}</div>
+                            <Label htmlFor="notes" className="text-xs text-muted-foreground">Observações</Label>
+                            <Textarea
+                              id="notes"
+                              ref={(el) => (messageRef.current = el)}
+                              value={formData.notes}
+                              onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
+                              placeholder="Alguma preferência ou observação?"
+                              className="bg-background border-border mt-1"
+                              rows={3}
+                            />
                           </div>
                         </div>
                       </div>
@@ -673,11 +668,11 @@ const Agendamento = () => {
                   <Button variant="ghost" onClick={handleBack}>Voltar</Button>
                 )}
 
-                {currentStep < 5 && (
+                {currentStep < 4 && (
                   <Button className="btn-cta" onClick={handleNext}>Próximo</Button>
                 )}
 
-                {currentStep === 5 && (
+                {currentStep === 4 && (
                   <Button size="lg" className="w-48 btn-cta-filled" onClick={() => handleSubmit()}>
                     Confirmar Agendamento
                   </Button>

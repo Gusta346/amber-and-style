@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      setUserEmail(data.user?.email || null);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email || null);
+    });
+    return () => { sub.subscription?.unsubscribe(); };
+  }, []);
 
   const navLinks = [
     { name: "Início", path: "/" },
@@ -51,7 +64,18 @@ const Navbar = () => {
                 )}
               </Link>
             ))}
-            <Link to="/admin-portal-9f3b7/login" className="text-sm font-medium text-foreground hover:text-primary">Login</Link>
+            {/* Perfil por último dentro do grupo */}
+            <Link
+              to="/perfil"
+              className={`relative text-sm font-medium transition-colors hover:text-primary ${
+                isActive('/perfil') ? 'text-primary' : 'text-foreground'
+              }`}
+            >
+              Perfil
+              {isActive('/perfil') && (
+                <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-gradient-primary animate-fade-in" />
+              )}
+            </Link>
             <Link to="/agendamento">
               <Button className="btn-cta font-semibold hover-glow">
                 Agendar Horário
@@ -84,7 +108,16 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
-              <Link to="/admin-portal-9f3b7/login" onClick={() => setIsOpen(false)} className="w-full text-center text-base font-medium text-foreground hover:text-primary">Login</Link>
+              {/* Perfil por último no mobile */}
+              <Link
+                to="/perfil"
+                onClick={() => setIsOpen(false)}
+                className={`text-base font-medium transition-colors hover:text-primary ${
+                  isActive('/perfil') ? 'text-primary' : 'text-foreground'
+                }`}
+              >
+                Perfil
+              </Link>
               <Link to="/agendamento" onClick={() => setIsOpen(false)}>
                 <Button className="w-full btn-cta font-semibold">
                   Agendar Horário
