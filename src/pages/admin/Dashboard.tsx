@@ -30,6 +30,7 @@ const AdminDashboard = () => {
   const [barberFilter, setBarberFilter] = React.useState<string>('');
   // show only today's bookings
   const [onlyToday, setOnlyToday] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'upcoming' | 'history'>('upcoming');
 
   const { data: services } = useQuery({
     queryKey: ["admin-services"],
@@ -297,6 +298,97 @@ const AdminDashboard = () => {
     return { todayCount, monthCount, revenue, perBarber };
   }, [bookings, services, barbers, today, monthStart]);
 
+  // unified recent history: last 5 of cancelled or completed
+  const recentHistory = useMemo(() => {
+    const list = (bookings || []).filter((b: any) => {
+      const s = String(b.status || '').toLowerCase();
+      return s.startsWith('cancel') || s.startsWith('comp') || s.startsWith('concl');
+    });
+    const byDate = (row: any) => {
+      const s = String(row.canceled_at || row.updated_at || row.created_at || '')
+      const t = Date.parse(s);
+      return isNaN(t) ? 0 : t;
+    };
+    const ordered = list.sort((a, b) => byDate(b) - byDate(a));
+    return ordered.slice(0, 5);
+  }, [bookings]);
+
+  // Permanently delete a history booking from DB
+  const deleteHistoryBooking = async (id: string) => {
+    const cacheKey = ['admin-bookings'];
+    const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+    // optimistic remove
+    queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter((b: any) => String(b.id) !== String(id)));
+    const { error } = await (supabase as any).from('bookings').delete().eq('id', id);
+    if (error) {
+      queryClient.setQueryData<any[]>(cacheKey, prev);
+      toast({ title: 'Erro ao remover histórico', description: error.message, variant: 'destructive' });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: cacheKey });
+      toast({ title: 'Item removido', description: 'Agendamento removido do histórico.' });
+    }
+  };
+
+  // Cleanup: keep only the latest 5 history items in DB
+  React.useEffect(() => {
+    const runCleanup = async () => {
+      try {
+        const list = (bookings || []).filter((b: any) => {
+          const s = String(b.status || '').toLowerCase();
+          return s.startsWith('cancel') || s.startsWith('comp') || s.startsWith('concl');
+        });
+        if (list.length <= 5) return;
+        const byDate = (row: any) => {
+          const s = String(row.canceled_at || row.updated_at || row.created_at || '')
+          const t = Date.parse(s);
+          return isNaN(t) ? 0 : t;
+        };
+        const ordered = [...list].sort((a, b) => byDate(b) - byDate(a));
+        const toDelete = ordered.slice(5).map((b: any) => b.id);
+        if (toDelete.length === 0) return;
+        // optimistic remove from cache
+        const cacheKey = ['admin-bookings'];
+        const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+        queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter((b: any) => !toDelete.includes(b.id)));
+        const { error } = await (supabase as any).from('bookings').delete().in('id', toDelete);
+        if (error) {
+          queryClient.setQueryData<any[]>(cacheKey, prev);
+          toast({ title: 'Erro ao limpar histórico', description: error.message, variant: 'destructive' });
+        } else {
+          await queryClient.invalidateQueries({ queryKey: cacheKey });
+          toast({ title: 'Histórico limpo', description: `${toDelete.length} itens antigos removidos.` });
+        }
+      } catch (e: any) {
+        // silent
+      }
+    };
+    if (viewMode === 'history' && bookings) {
+      runCleanup();
+    }
+  }, [viewMode, bookings, queryClient]);
+
+  // removed separate recentCancelled/recentCompleted (use recentHistory instead)
+
+  const revertBooking = async (row: any) => {
+    const cacheKey = ['admin-bookings'];
+    const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+    // optimistic
+    queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).map((b: any) => (
+      String(b.id) === String(row.id) ? { ...b, status: 'confirmed', canceled_at: null } : b
+    )));
+    const { error } = await (supabase as any).from('bookings').update({ status: 'confirmed', canceled_at: null } as any).eq('id', row.id);
+    if (error) {
+      queryClient.setQueryData<any[]>(cacheKey, prev);
+      toast({ title: 'Erro ao reverter', description: error.message, variant: 'destructive' });
+    } else {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cacheKey }),
+        queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
+      ]);
+      toast({ title: 'Agendamento revertido', description: 'Status voltou para confirmado.' });
+    }
+  };
+
   const logout = async () => {
     try { await supabase.auth.signOut(); } catch {}
     localStorage.removeItem("admin_token");
@@ -408,47 +500,89 @@ const AdminDashboard = () => {
                   <input type="checkbox" checked={onlyToday} onChange={(e)=> setOnlyToday(e.target.checked)} />
                   Cortes de hoje
                 </label>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() => setViewMode((m) => (m === 'upcoming' ? 'history' : 'upcoming'))}
+                  >
+                    {viewMode === 'history' ? 'Voltar aos próximos' : `Ver histórico (${recentHistory.length})`}
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-3 max-h-[60vh] sm:max-h-80 overflow-auto">
-                {(bookings || [])
-                  .filter((b: any) => (barberFilter ? (b.barber_id === barberFilter || b.barber_name === barberFilter) : true))
-                  .filter((b: any) => (onlyToday ? b.booking_date === today : true))
-                  // hide cancelled bookings from the list so they don't reappear after optimistic updates
-                  .filter((b: any) => {
-                    const s = String(b.status || '').toLowerCase();
-                    // exclude cancelled and completed/concluído
-                    return !(s.startsWith('cancel')) && !s.startsWith('comp') && !s.startsWith('concl');
-                  })
-                  .map((b: any) => (
-                  <div key={b.id} className={`w-full bg-card border p-3 rounded-md hover:shadow-sm transition ${b.status && b.status.toLowerCase().startsWith('cancel') ? 'border-red-200' : b.status && (b.status.toLowerCase().startsWith('comp') || b.status.toLowerCase().startsWith('concl')) ? 'border-green-200' : 'border-blue-50'}`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden text-sm text-muted-foreground">{(b.client_name || '').split(' ').map((s:any)=>s[0]).slice(0,2).join('')}</div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { const dt = getBookingDateTime(b); return dt ? format(dt, 'd/M/yyyy', { locale: ptBR }) : b.booking_date } catch { return b.booking_date } })()} {b.booking_time}</div>
-                            <div className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-muted-foreground">{b.status ?? 'scheduled'}</div>
+              <div className={`space-y-3 overflow-auto ${viewMode === 'history' ? 'max-h-[70vh] sm:max-h-[75vh]' : 'max-h-[60vh] sm:max-h-80'}`}>
+                {viewMode === 'upcoming' ? (
+                  (bookings || [])
+                    .filter((b: any) => (barberFilter ? (b.barber_id === barberFilter || b.barber_name === barberFilter) : true))
+                    .filter((b: any) => (onlyToday ? b.booking_date === today : true))
+                    // hide cancelled bookings from the list so they don't reappear after optimistic updates
+                    .filter((b: any) => {
+                      const s = String(b.status || '').toLowerCase();
+                      // exclude cancelled and completed/concluído
+                      return !(s.startsWith('cancel')) && !s.startsWith('comp') && !s.startsWith('concl');
+                    })
+                    .map((b: any) => (
+                    <div key={b.id} className={`w-full bg-card border p-3 rounded-md hover:shadow-sm transition ${b.status && b.status.toLowerCase().startsWith('cancel') ? 'border-red-200' : b.status && (b.status.toLowerCase().startsWith('comp') || b.status.toLowerCase().startsWith('concl')) ? 'border-green-200' : 'border-blue-50'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden text-sm text-muted-foreground">{(b.client_name || '').split(' ').map((s:any)=>s[0]).slice(0,2).join('')}</div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { const dt = getBookingDateTime(b); return dt ? format(dt, 'd/M/yyyy', { locale: ptBR }) : b.booking_date } catch { return b.booking_date } })()} {b.booking_time}</div>
+                              <div className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-muted-foreground">{b.status ?? 'scheduled'}</div>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
-                        <div className="text-sm font-semibold text-right sm:text-right">R$ {(b.service_price ?? (services || []).find((s:any)=> s.id===b.service_id)?.price ?? 0).toFixed(2)}</div>
-                        <div className="flex flex-col sm:flex-row gap-2 w-full">
-                          {/* Actions only when not cancelled or completed */}
-                          {(() => { const s = String(b.status || '').toLowerCase(); return !s.startsWith('cancel') && !s.startsWith('comp') && !s.startsWith('concl'); })() && (
-                            <>
-                              <Button variant="secondary" size="sm" onClick={() => completeBooking(b.id)} className="w-full sm:w-auto">Concluir</Button>
-                              <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)} className="w-full sm:w-auto">Cancelar</Button>
-                            </>
-                          )}
-                          {String(b.status || '').toLowerCase().startsWith('cancel') && <div className="text-xs text-red-600 text-center sm:text-right">Cancelado</div>}
+                        <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+                          <div className="text-sm font-semibold text-right sm:text-right">R$ {(b.service_price ?? (services || []).find((s:any)=> s.id===b.service_id)?.price ?? 0).toFixed(2)}</div>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full">
+                            {/* Actions only when not cancelled or completed */}
+                            {(() => { const s = String(b.status || '').toLowerCase(); return !s.startsWith('cancel') && !s.startsWith('comp') && !s.startsWith('concl'); })() && (
+                              <>
+                                <Button variant="secondary" size="sm" onClick={() => completeBooking(b.id)} className="w-full sm:w-auto">Concluir</Button>
+                                <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)} className="w-full sm:w-auto">Cancelar</Button>
+                              </>
+                            )}
+                            {String(b.status || '').toLowerCase().startsWith('cancel') && <div className="text-xs text-red-600 text-center sm:text-right">Cancelado</div>}
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="space-y-2">
+                    {recentHistory.length === 0 && (
+                      <div className="text-sm text-muted-foreground">Sem histórico recente.</div>
+                    )}
+                    {recentHistory.map((b: any) => {
+                      const s = String(b.status || '').toLowerCase();
+                      const badge = s.startsWith('cancel') ? 'bg-red-100 text-red-700' : (s.startsWith('comp') || s.startsWith('concl')) ? 'bg-green-100 text-green-700' : 'bg-muted/10 text-muted-foreground';
+                      return (
+                        <div key={b.id} className="relative border rounded p-2 bg-card flex items-start justify-between gap-2">
+                          <button
+                            aria-label="Remover do histórico"
+                            className="absolute top-1 right-1 text-muted-foreground hover:text-foreground text-xs"
+                            onClick={() => deleteHistoryBooking(String(b.id))}
+                          >
+                            ×
+                          </button>
+                          <div className="min-w-0 pr-6">
+                            <div className="text-sm font-medium truncate">{b.client_name || 'Cliente'} — {(() => { try { const dt = getBookingDateTime(b); return dt ? format(dt, 'd/M', { locale: ptBR }) : b.booking_date } catch { return b.booking_date } })()} {b.booking_time}</div>
+                            <div className="text-xs text-muted-foreground truncate">{b.service_name || (services || []).find((s:any)=> s.id===b.service_id)?.name || 'Serviço'} • {b.barber_name || (barbers || []).find((x:any)=> x.id===b.barber_id)?.name || 'Barbeiro'}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`text-[11px] px-2 py-0.5 rounded ${badge}`}>{b.status || ''}</div>
+                            <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => revertBooking(b)}>Reverter</Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
             </Card>
           </div>
@@ -489,6 +623,8 @@ const AdminDashboard = () => {
               </div>
             </Card>
           </div>
+
+          {/* Removed redundant Recent cancelled/completed sections (now covered by inline history toggle) */}
 
           {/* Contact Messages */}
           <div className="grid grid-cols-1 gap-4 mt-4">

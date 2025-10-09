@@ -36,7 +36,7 @@ const Assinatura = () => {
       <Navbar />
 
       <main className="pt-32 pb-20">
-        <div className="container mx-auto px-4">
+  <div className="container mx-auto px-6 md:px-10">
           {/* Header */}
           <div className="text-center mb-16">
             <h1 className="text-5xl md:text-6xl font-bold mb-4">
@@ -83,7 +83,7 @@ const Assinatura = () => {
                       </div>
                     )}
 
-                    <CardHeader className="text-center pb-4">
+                    <CardHeader className="text-center pb-6 pt-6">
                       <div className="mx-auto mb-4 p-3 bg-muted rounded-full w-fit">
                         <Icon className={`h-8 w-8 ${isPopular ? "text-primary" : "text-foreground"}`} />
                       </div>
@@ -105,7 +105,7 @@ const Assinatura = () => {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-6 pt-2 pb-6">
                       <ul className="space-y-3">
                         {plan.features.map((feature, index) => (
                           <li key={index} className="flex items-start gap-2">
