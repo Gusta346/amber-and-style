@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,26 @@ const Contato = () => {
     subject: "",
     message: "",
   });
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
 
   const location = useLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const preMsg = params.get("message");
+    const preSubject = params.get("subject");
     if (preMsg) {
       setFormData((s) => ({ ...s, message: preMsg }));
+    }
+    if (preSubject) {
+      setFormData((s) => ({ ...s, subject: preSubject }));
+    }
+    // If URL has hash #message, scroll and focus the message field
+    if (location.hash === '#message') {
+      setTimeout(() => {
+        messageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageRef.current?.focus();
+      }, 50);
     }
   }, [location.search]);
 
@@ -273,19 +285,28 @@ const Contato = () => {
 
                     <div>
                       <Label htmlFor="subject">Assunto *</Label>
-                      <Input
+                      <select
                         id="subject"
                         value={formData.subject}
                         onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                         required
-                        className="bg-background border-border"
-                      />
+                        className="w-full rounded border border-border p-2 bg-background"
+                      >
+                        <option value="">Selecione um assunto</option>
+                        <option value="Agendamento">Agendamento</option>
+                        <option value="Serviços">Serviços</option>
+                        <option value="Produtos">Produtos</option>
+                        <option value="Curso - Inscrição">Curso - Inscrição</option>
+                        <option value="Parcerias">Parcerias</option>
+                        <option value="Outros">Outros</option>
+                      </select>
                     </div>
 
                     <div>
                       <Label htmlFor="message">Mensagem *</Label>
                       <Textarea
                         id="message"
+                        ref={messageRef}
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                         required

@@ -9,6 +9,7 @@ import { format, getDay, startOfMonth, endOfMonth, startOfWeek, addDays } from "
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useToast } from '@/hooks/use-toast';
+import { Calendar } from '@/components/ui/calendar';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -31,6 +32,53 @@ const AdminDashboard = () => {
   // show only today's bookings
   const [onlyToday, setOnlyToday] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'upcoming' | 'history'>('upcoming');
+  // Day-blocks management state
+  const [blockBarberId, setBlockBarberId] = useState<string>('');
+  const [blockDate, setBlockDate] = useState<Date | undefined>(undefined);
+  const [blockReason, setBlockReason] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await (supabase as any).auth.getUser();
+        setCurrentUser(data?.user || null);
+      } catch {}
+    })();
+  }, []);
+
+  const { data: myAdminRows } = useQuery({
+    queryKey: ['my-admin', currentUser?.id || 'none'],
+    enabled: !!currentUser,
+    queryFn: async () => {
+      const uid = currentUser?.id;
+      if (!uid) return [] as any[];
+      const { data, error } = await (supabase as any)
+        .from('admins')
+        .select('user_id, email')
+        .eq('user_id', uid)
+        .limit(1);
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+  const isAdmin = !!(myAdminRows && myAdminRows.length > 0);
+
+  // Safe parser for date-only strings (yyyy-MM-dd) to avoid timezone shifting one day back/forward
+  const parseLocalDateFromYYYYMMDD = (val: any) => {
+    try {
+      const s = String(val || '');
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) {
+        const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+        // Use noon to be extra safe against DST edges
+        return new Date(y, mo - 1, d, 12, 0, 0, 0);
+      }
+      const t = new Date(val);
+      if (isNaN(t.getTime())) return null;
+      return t;
+    } catch { return null; }
+  };
 
   const { data: services } = useQuery({
     queryKey: ["admin-services"],
@@ -47,6 +95,28 @@ const AdminDashboard = () => {
       const { data, error } = await supabase.from("team_members").select("*");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch day blocks (optionally filtered by selected barber for management)
+  const { data: blocks, isLoading: blocksLoading } = useQuery({
+    queryKey: ["barber-day-blocks", blockBarberId || 'all'],
+    queryFn: async () => {
+      let q: any = (supabase as any)
+        .from('barber_day_blocks')
+        .select('id, barber_id, block_date, reason, created_at')
+        .order('block_date', { ascending: true });
+      if (blockBarberId) q = q.eq('barber_id', blockBarberId);
+      const { data, error } = await q;
+      if (error) {
+        // If table doesn't exist remotely yet, treat as empty instead of throwing
+        const msg = String(error?.message || '');
+        if ((error as any)?.code === 'PGRST116' || (error as any)?.status === 404 || /not\s*found|404/i.test(msg)) {
+          return [] as any[];
+        }
+        throw error;
+      }
+      return data as any[];
     },
   });
 
@@ -583,6 +653,105 @@ const AdminDashboard = () => {
                     })}
                   </div>
                 )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Barber day blocks management */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Bloquear dia do barbeiro</h3>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Barbeiro</label>
+                  <select value={blockBarberId} onChange={(e)=> setBlockBarberId(e.target.value)} className="w-full rounded border border-border p-2 bg-background">
+                    <option value="">Selecione um barbeiro</option>
+                    {(barbers || []).map((b: any) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Escolha a data</label>
+                  <Calendar
+                    mode="single"
+                    selected={blockDate}
+                    onSelect={(d: any) => setBlockDate(d ?? undefined)}
+                    locale={ptBR}
+                    className="rounded-md border border-border"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <input
+                    placeholder="Motivo (opcional)"
+                    value={blockReason}
+                    onChange={(e)=> setBlockReason(e.target.value)}
+                    className="w-full rounded border border-border p-2 bg-background text-sm"
+                  />
+                  <Button
+                    disabled={!blockBarberId || !blockDate || !currentUser || !isAdmin}
+                    onClick={async () => {
+                      if (!blockBarberId || !blockDate) return;
+                      try {
+                        // Normalize to YYYY-MM-DD in local time to avoid off-by-one
+                        const loc = blockDate as Date;
+                        const dNorm = new Date(loc.getFullYear(), loc.getMonth(), loc.getDate(), 12, 0, 0, 0);
+                        const dStr = format(dNorm, 'yyyy-MM-dd');
+                        // optimistic update via invalidation only (simple path)
+                        const { error } = await (supabase as any).from('barber_day_blocks').insert({ barber_id: blockBarberId, block_date: dStr, reason: blockReason || null }).select();
+                        if (error) throw error;
+                        setBlockReason('');
+                        toast({ title: 'Dia bloqueado', description: 'O barbeiro não poderá receber agendamentos nesse dia.' });
+                        await queryClient.invalidateQueries({ queryKey: ['barber-day-blocks'] });
+                        await queryClient.invalidateQueries({ queryKey: ['barber-day-blocks-range'] });
+                      } catch (err: any) {
+                        const msg = String(err?.message || '').toLowerCase();
+                        const isRls = msg.includes('row-level security') || msg.includes('rls') || (err?.code === '42501');
+                        const desc = isRls
+                          ? 'Permissão negada. Faça login como admin (Perfil) e confirme que seu usuário está na tabela admins.'
+                          : (err?.message || 'Tente novamente.');
+                        toast({ title: 'Erro ao bloquear dia', description: desc, variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    Bloquear dia
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Dias bloqueados</h3>
+              <div className="space-y-2 max-h-[50vh] overflow-auto">
+                {(blocksLoading) && <div className="text-sm text-muted-foreground">Carregando…</div>}
+                {!blocksLoading && (blocks || []).length === 0 && (
+                  <div className="text-sm text-muted-foreground">Nenhum dia bloqueado.</div>
+                )}
+                {(blocks || []).map((bk: any) => (
+                  <div key={bk.id} className="border rounded p-2 bg-card flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">
+                        {(() => { try { const dt = parseLocalDateFromYYYYMMDD(bk.block_date); return dt ? format(dt, "d 'de' MMMM yyyy", { locale: ptBR }) : String(bk.block_date); } catch { return String(bk.block_date) } })()} — {(barbers || []).find((b: any) => b.id === bk.barber_id)?.name || 'Barbeiro'}
+                      </div>
+                      {bk.reason && <div className="text-xs text-muted-foreground truncate">{bk.reason}</div>}
+                    </div>
+                    <Button variant="outline" size="sm" className="h-7 px-2" disabled={!isAdmin} onClick={async () => {
+                      try {
+                        const { error } = await (supabase as any).from('barber_day_blocks').delete().eq('id', bk.id);
+                        if (error) throw error;
+                        await queryClient.invalidateQueries({ queryKey: ['barber-day-blocks'] });
+                        await queryClient.invalidateQueries({ queryKey: ['barber-day-blocks-range'] });
+                      } catch (err: any) {
+                        const msg = String(err?.message || '').toLowerCase();
+                        const isRls = msg.includes('row-level security') || msg.includes('rls') || (err?.code === '42501');
+                        const desc = isRls
+                          ? 'Permissão negada. Faça login como admin (Perfil) e confirme que seu usuário está na tabela admins.'
+                          : (err?.message || 'Tente novamente.');
+                        toast({ title: 'Erro ao remover bloqueio', description: desc, variant: 'destructive' });
+                      }
+                    }}>Remover</Button>
+                  </div>
+                ))}
               </div>
             </Card>
           </div>

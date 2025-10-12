@@ -158,6 +158,7 @@ const ReviewFormBlock: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [serviceType, setServiceType] = useState('');
   const [barberId, setBarberId] = useState('');
+  const [serviceId, setServiceId] = useState('');
   const [comment, setComment] = useState('');
   const [rating, setRating] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
@@ -167,6 +168,24 @@ const ReviewFormBlock: React.FC = () => {
     queryKey: ['public-barbers'],
     queryFn: async () => {
       const { data, error } = await supabase.from('team_members').select('id, name').order('name');
+      if (error) throw error;
+      return (data as any[]) || [];
+    }
+  });
+
+  // Load services and combos for selection
+  const { data: services } = useQuery<any[]>({
+    queryKey: ['public-services'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('services').select('id, name').order('name');
+      if (error) throw error;
+      return (data as any[]) || [];
+    }
+  });
+  const { data: combos } = useQuery<any[]>({
+    queryKey: ['public-combos'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('service_combos').select('id, name').order('name');
       if (error) throw error;
       return (data as any[]) || [];
     }
@@ -186,7 +205,13 @@ const ReviewFormBlock: React.FC = () => {
         client_phone: phone.trim() || null,
         rating,
         comment: comment.trim(),
-        service_type: serviceType.trim() || null,
+        service_type: (() => {
+          if (serviceId) {
+            const svc = (services || []).find(s => String(s.id) === String(serviceId)) || (combos || []).find((c: any) => String(c.id) === String(serviceId));
+            return svc?.name || null;
+          }
+          return serviceType.trim() || null;
+        })(),
         barber_name: chosenBarber?.name || null,
         featured: false,
       };
@@ -210,7 +235,7 @@ const ReviewFormBlock: React.FC = () => {
         }
       }
 
-  setName(''); setPhone(''); setServiceType(''); setBarberId(''); setComment(''); setRating(0);
+  setName(''); setPhone(''); setServiceType(''); setServiceId(''); setBarberId(''); setComment(''); setRating(0);
       // Update stats block
       await queryClient.invalidateQueries({ queryKey: ['reviews-all'] });
       toast({ title: 'Obrigado pela sua avaliação!', description: 'Ela passará por moderação e poderá aparecer na página inicial.' });
@@ -241,7 +266,23 @@ const ReviewFormBlock: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="service">Serviço (opcional)</Label>
-                <Input id="service" value={serviceType} onChange={(e)=> setServiceType(e.target.value)} placeholder="Ex.: Corte, Barba, Combo..." />
+                <select id="service" value={serviceId} onChange={(e)=> setServiceId(e.target.value)} className="w-full rounded border border-border p-2 bg-background">
+                  <option value="">Selecione um serviço</option>
+                  {(services && services.length > 0) && (
+                    <optgroup label="Serviços">
+                      {services.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {(combos && combos.length > 0) && (
+                    <optgroup label="Combos">
+                      {combos.map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
               </div>
               <div>
                 <Label htmlFor="barber">Barbeiro (opcional)</Label>

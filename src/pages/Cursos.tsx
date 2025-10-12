@@ -129,7 +129,7 @@ const Cursos = () => {
               <p className="text-muted-foreground mb-8">
                 ou 12x de <span className="whitespace-nowrap">R$&nbsp;499,00</span> no cartão
               </p>
-              <Link to={`/contato?message=${encodeURIComponent("Olá, gostaria de me inscrever no Curso Profissional de Barbeiro. Poderiam, por favor, me informar sobre próximas turmas, formas de pagamento e lista de materiais necessários? Obrigado!")}`}>
+              <Link to={`/contato?message=${encodeURIComponent("Olá, gostaria de me inscrever no Curso Profissional de Barbeiro. Poderiam, por favor, me informar sobre próximas turmas, formas de pagamento e lista de materiais necessários? Obrigado!")}&subject=${encodeURIComponent("Curso - Inscrição")}#message`}>
                 <Button size="lg" className="bg-gradient-primary hover:opacity-90 text-white font-bold text-lg px-8 py-6">
                   Inscrever-se Agora
                 </Button>

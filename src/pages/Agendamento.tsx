@@ -89,6 +89,9 @@ const Agendamento = () => {
     },
   });
 
+  // Fetch day blocks for next 60 days to enforce per-barber day-off
+  // dayBlocks query is declared after computing today/rangeEnd
+
   // hardcoded barber options shown in the UI (kept for legacy slugs), reuse below
   const defaultBarbers = [
     { slug: 'anderson', name: 'Anderson' },
@@ -100,6 +103,25 @@ const Agendamento = () => {
   const today = new Date();
   const rangeEnd = addDays(today, 60);
   const bookingsQueryKey = ["bookings-range", format(today, "yyyy-MM-dd"), format(rangeEnd, "yyyy-MM-dd")];
+  // Fetch day blocks for next 60 days to enforce per-barber day-off
+  const { data: dayBlocks } = useQuery({
+    queryKey: ["barber-day-blocks-range", format(today, "yyyy-MM-dd"), format(rangeEnd, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('barber_day_blocks')
+        .select('id, barber_id, block_date')
+        .gte('block_date', format(today, 'yyyy-MM-dd'))
+        .lte('block_date', format(rangeEnd, 'yyyy-MM-dd'));
+      if (error) {
+        const msg = String(error?.message || '');
+        if ((error as any)?.code === 'PGRST116' || (error as any)?.status === 404 || /not\s*found|404/i.test(msg)) {
+          return [] as Array<{ id: string; barber_id: string; block_date: string }>;
+        }
+        throw error;
+      }
+      return data as Array<{ id: string; barber_id: string; block_date: string }>;
+    },
+  });
   const { data: bookings } = useQuery({
     queryKey: bookingsQueryKey,
     queryFn: async () => {
@@ -145,6 +167,41 @@ const Agendamento = () => {
     });
     return full;
   }, [bookings]);
+
+  // Build map of date -> set of blocked barber ids
+  const blockedBarbersByDate = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    (dayBlocks || []).forEach((b: any) => {
+      // normalize date string to safe yyyy-MM-dd
+      let d = String(b.block_date);
+      if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+        d = d.slice(0, 10);
+      } else {
+        try {
+          const t = new Date(b.block_date);
+          if (!isNaN(t.getTime())) d = format(new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12, 0, 0, 0), 'yyyy-MM-dd');
+        } catch {}
+      }
+      const bid = String(b.barber_id);
+      if (!d || !bid) return;
+      if (!map[d]) map[d] = new Set<string>();
+      map[d].add(bid);
+    });
+    return map;
+  }, [dayBlocks]);
+
+  // If selected date becomes blocked for the chosen barber, clear barber selection
+  useEffect(() => {
+    if (!date || !formData.barberId) return;
+    const dStr = format(date, 'yyyy-MM-dd');
+    const selectedBarberId = (() => {
+      const found = (barbers as any)?.find((bb: any) => bb.id === formData.barberId || bb.slug === formData.barberId || String(bb.name || '').toLowerCase() === String(formData.barberId).toLowerCase());
+      return String(found?.id ?? formData.barberId);
+    })();
+    if (blockedBarbersByDate[dStr]?.has(selectedBarberId)) {
+      setFormData((p) => ({ ...p, barberId: '' }));
+    }
+  }, [date, blockedBarbersByDate]);
 
   useEffect(() => {
     // if serviceId passed in query, preselect it
@@ -492,7 +549,9 @@ const Agendamento = () => {
                         const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
                         // allow selecting today (so only dates strictly before today blocked)
                         const isBeforeToday = dayStr < todayStr;
-                        return isBeforeToday || bookedDates.has(dayStr);
+                        const totalBarbers = (barbers && barbers.length) || defaultBarbers.length;
+                        const allBlocked = (blockedBarbersByDate[dayStr]?.size || 0) >= totalBarbers;
+                        return isBeforeToday || bookedDates.has(dayStr) || allBlocked;
                       }}
                       locale={ptBR}
                       className="rounded-md border border-border bg-background"
@@ -566,6 +625,11 @@ const Agendamento = () => {
                             return timesOverlap(selStart, selDur, existStart, existDur);
                           });
                         }
+                      }
+                      // Blocked by admin for the selected date
+                      if (date) {
+                        const dStr = format(date, 'yyyy-MM-dd');
+                        if (blockedBarbersByDate[dStr]?.has(barberIdForCheck)) disabled = true;
                       }
 
                       return (
