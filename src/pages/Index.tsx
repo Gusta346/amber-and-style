@@ -96,7 +96,7 @@ const ReviewsBlock = () => {
         </Card>
       </div>
 
-      <div>
+      <div className="max-w-6xl mx-auto px-2 md:px-0">
         <h3 className="text-3xl font-bold mb-8 text-center">Depoimentos de <span className="text-gradient">Clientes</span></h3>
 
   {isLoading ? (
@@ -110,10 +110,10 @@ const ReviewsBlock = () => {
             ))}
           </div>
         ) : reviews && reviews.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 xl:gap-8">
             {reviews.map((review: any) => (
-              <Card key={review.id} className="bg-card border-border hover:border-primary transition-all hover:shadow-glow">
-                <CardContent className="p-6 space-y-4">
+              <Card key={review.id} className="bg-card border-border hover:border-primary transition-all hover:shadow-glow h-full">
+                <CardContent className="p-5 sm:p-6 space-y-4 h-full">
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
@@ -378,7 +378,7 @@ const Index = () => {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+  <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-28 md:pt-32">
         <div className="absolute inset-0 z-0">
           <img
             src={heroImage}

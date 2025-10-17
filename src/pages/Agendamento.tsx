@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, User } from "lucide-react";
-import { format, addDays, startOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { format, addDays, addMonths, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -192,9 +192,15 @@ const Agendamento = () => {
     { slug: 'andre', name: 'Andre' },
   ];
 
-  // Fetch bookings for the next 60 days to mark unavailable dates/times
+  // Calendar window: only current month and next month
+  const monthStart = useMemo(() => startOfMonth(new Date()), []);
+  const nextMonthStart = useMemo(() => addMonths(startOfMonth(new Date()), 1), []);
+  const allowedStartDate = monthStart;
+  const allowedEndDate = useMemo(() => endOfMonth(nextMonthStart), [nextMonthStart]);
+
+  // Fetch bookings up to end of next month to mark unavailable dates/times
   const today = new Date();
-  const rangeEnd = addDays(today, 60);
+  const rangeEnd = allowedEndDate;
   const bookingsQueryKey = ["bookings-range", format(today, "yyyy-MM-dd"), format(rangeEnd, "yyyy-MM-dd")];
   // Fetch day blocks for next 60 days to enforce per-barber day-off
   const { data: dayBlocks } = useQuery({
@@ -295,6 +301,17 @@ const Agendamento = () => {
       setFormData((p) => ({ ...p, barberId: '' }));
     }
   }, [date, blockedBarbersByDate]);
+
+  useEffect(() => {
+    // If selected date falls out of the allowed window (current + next month), clear it
+    if (!date) return;
+    const d0 = startOfDay(date).getTime();
+    const min0 = startOfDay(allowedStartDate).getTime();
+    const max0 = startOfDay(allowedEndDate).getTime();
+    if (d0 < min0 || d0 > max0) {
+      setDate(undefined);
+    }
+  }, [date, allowedStartDate, allowedEndDate]);
 
   useEffect(() => {
     // if serviceId passed in query, preselect it
@@ -680,11 +697,19 @@ const Agendamento = () => {
                         const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
                         // allow selecting today (so only dates strictly before today blocked)
                         const isBeforeToday = dayStr < todayStr;
+                        // window guard: only current and next month
+                        const minStr = format(startOfDay(allowedStartDate), 'yyyy-MM-dd');
+                        const maxStr = format(startOfDay(allowedEndDate), 'yyyy-MM-dd');
+                        const outOfWindow = dayStr < minStr || dayStr > maxStr;
                         const totalBarbers = (barbers && barbers.length) || defaultBarbers.length;
                         const allBlocked = (blockedBarbersByDate[dayStr]?.size || 0) >= totalBarbers;
-                        return isBeforeToday || bookedDates.has(dayStr) || allBlocked;
+                        return isBeforeToday || outOfWindow || bookedDates.has(dayStr) || allBlocked;
                       }}
                       locale={ptBR}
+                      fromMonth={allowedStartDate}
+                      toMonth={nextMonthStart}
+                      fromDate={allowedStartDate}
+                      toDate={allowedEndDate}
                       className="rounded-md border border-border bg-background"
                     />
                   </div>

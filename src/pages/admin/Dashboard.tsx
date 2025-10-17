@@ -606,7 +606,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="pt-32 pb-20">
+  <main className="pt-36 md:pt-40 pb-20">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Painel Admin</h1>
@@ -662,7 +662,7 @@ const AdminDashboard = () => {
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-4 relative z-10 isolate">
               <h3 className="font-semibold mb-2">Próximos agendamentos</h3>
 
               <div className="mb-3 space-y-2">
@@ -689,7 +689,7 @@ const AdminDashboard = () => {
                   </Button>
                 </div>
               </div>
-              <div className={`space-y-3 overflow-auto ${viewMode === 'history' ? 'max-h-[70vh] sm:max-h-[75vh]' : 'max-h-[60vh] sm:max-h-80'}`}>
+              <div className={`space-y-3 overflow-auto ${viewMode === 'history' ? 'max-h-[70vh] sm:max-h-[75vh]' : 'max-h-[60vh] sm:max-h-80'} relative z-10` }>
                 {viewMode === 'upcoming' ? (
                   (bookings || [])
                     .filter((b: any) => (barberFilter ? (b.barber_id === barberFilter || b.barber_name === barberFilter) : true))
@@ -1030,16 +1030,22 @@ const AdminDashboard = () => {
                               <span key={i} className={`text-xs ${i < (r.rating || 0) ? 'text-primary' : 'text-muted-foreground'}`}>★</span>
                             ))}
                           </div>
-                          <div className="text-xs text-muted-foreground">{(() => { try { return format(new Date(r.created_at), 'd/M HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
+                          {/* Desktop timestamp (hidden on mobile) */}
+                          <div className="hidden sm:block text-xs text-muted-foreground">{(() => { try { return format(new Date(r.created_at), 'd/M HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
                         </div>
                         <div className="text-sm font-medium truncate">{r.client_name || 'Cliente'}</div>
                         <div className="text-xs text-muted-foreground truncate">{r.client_phone || ''} {r.service_type ? `• ${r.service_type}` : ''}</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant={r.featured ? 'secondary' : 'outline'} size="sm" className="h-7 px-2" onClick={() => toggleFeatured(r.id, !!r.featured)}>
-                          {r.featured ? 'Remover do Home' : 'Destaque no Home'}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => deleteReview(r.id)}>Excluir</Button>
+                      {/* Actions: stack on mobile, row on desktop */}
+                      <div className="flex gap-2 items-end sm:items-center flex-col sm:flex-row text-right">
+                        <div className="flex gap-2">
+                          <Button variant={r.featured ? 'secondary' : 'outline'} size="sm" className="h-7 px-2" onClick={() => toggleFeatured(r.id, !!r.featured)}>
+                            {r.featured ? 'Remover do Home' : 'Destaque no Home'}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => deleteReview(r.id)}>Excluir</Button>
+                        </div>
+                        {/* Mobile timestamp positioned under the Destaque button, aligned to bottom-right */}
+                        <div className="block sm:hidden text-[11px] text-muted-foreground mt-1 self-end">{(() => { try { return format(new Date(r.created_at), 'd/M HH:mm', { locale: ptBR }) } catch { return '' } })()}</div>
                       </div>
                     </div>
                     <div className="mt-2 text-sm whitespace-pre-line break-words">{r.comment}</div>
@@ -1052,39 +1058,29 @@ const AdminDashboard = () => {
       </main>
       {/* Responsive modal with backdrop: bottom-sheet on mobile, centered on desktop */}
       {modalOpen && (
-        // center modal on screen so message appears higher (avoid bottom corner)
-        <div className={`fixed inset-0 z-50 flex items-center justify-center`}>
+        // center modal on screen
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4`}>
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={closeModal} />
 
-          <div className="relative w-full sm:max-w-lg bg-background border-t border-border rounded-t-lg p-4 sm:rounded-lg sm:border sm:shadow-lg max-h-[75vh] sm:max-h-[90vh] overflow-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}>
+          <div className="relative w-full sm:max-w-lg bg-card border border-border rounded-xl p-0 sm:shadow-2xl max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="max-w-2xl mx-auto">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-semibold">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-border/60">
+                <div className="w-8 h-8 rounded-full bg-red-500/15 flex items-center justify-center text-red-500">!</div>
+                <h3 className="text-base sm:text-lg font-semibold">
                     {modalAction === 'cancel' && 'Confirmar cancelamento'}
                     {modalAction === 'delete-message' && 'Excluir mensagem'}
                     {modalAction === 'delete-review' && 'Excluir avaliação'}
-                  </h3>
-                  {modalAction === 'cancel' && (
-                    <p className="text-sm text-muted-foreground">{selectedBooking ? selectedBooking.client_name : 'Carregando...'}</p>
-                  )}
-                  {modalAction === 'delete-message' && (
-                    <p className="text-sm text-muted-foreground">{selectedMessage ? (selectedMessage.subject || 'Sem assunto') : 'Carregando...'}</p>
-                  )}
-                  {modalAction === 'delete-review' && (
-                    <p className="text-sm text-muted-foreground">{selectedReview ? (selectedReview.client_name || 'Cliente') : 'Carregando...'}</p>
-                  )}
-                </div>
-                <button className="text-sm text-muted-foreground" onClick={closeModal}>Fechar</button>
+                </h3>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4 px-5 py-4">
                 {modalAction === 'cancel' && (
                   <div className="text-sm">
+                    <div className="mb-1">Cliente: <span className="font-medium">{selectedBooking?.client_name ?? '—'}</span></div>
                     <div>Telefone: <span className="font-medium">{selectedBooking?.client_phone ?? 'não informado'}</span></div>
                     {selectedBooking?.client_phone && (
-                      <button className="mt-1 text-xs text-primary underline" onClick={() => { navigator.clipboard?.writeText(selectedBooking.client_phone); /* fallback */ toast({ title: 'Telefone copiado', description: selectedBooking.client_phone }); }}>Copiar telefone</button>
+                      <button className="mt-2 text-xs text-primary underline" onClick={() => { navigator.clipboard?.writeText(selectedBooking.client_phone); /* fallback */ toast({ title: 'Telefone copiado', description: selectedBooking.client_phone }); }}>Copiar telefone</button>
                     )}
                   </div>
                 )}
@@ -1092,14 +1088,13 @@ const AdminDashboard = () => {
                 {modalAction === 'cancel' && (
                   <div>
                     <label className="block text-sm text-muted-foreground mb-1">Observação (opcional)</label>
-                    <textarea value={modalReason} onChange={(e)=> setModalReason(e.target.value)} className="w-full rounded border border-border p-2 bg-background h-20" />
+                    <textarea value={modalReason} onChange={(e)=> setModalReason(e.target.value)} className="w-full rounded-md border border-border p-2 bg-background h-24" placeholder="Adicione um motivo ou observação..." />
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button className="w-full px-4 py-2 rounded-md border border-border text-sm" onClick={closeModal}>Fechar</button>
+                <div className="flex flex-col sm:flex-row gap-2 px-5 py-4 border-t border-border/60 bg-muted/10">
                   <button
-                    className={`w-full px-4 py-2 rounded-md btn-danger text-sm ${confirming ? 'opacity-60 cursor-wait' : ''}`}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-md btn-danger text-sm ${confirming ? 'opacity-60 cursor-wait' : 'hover:opacity-95'}`}
                     disabled={confirming}
                     onClick={async () => {
                       setConfirming(true);
@@ -1183,6 +1178,7 @@ const AdminDashboard = () => {
                       ? (modalAction === 'cancel' ? 'Cancelando...' : 'Excluindo...')
                       : (modalAction === 'cancel' ? 'Confirmar cancelamento' : 'Confirmar exclusão')}
                   </button>
+                  <button className="w-full sm:w-auto px-4 py-2 rounded-md border border-border text-sm hover:bg-muted/50" onClick={closeModal}>Fechar</button>
                 </div>
               </div>
             </div>
