@@ -30,7 +30,7 @@ const Avaliacoes = () => {
   }));
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background leading-comfortable">
       <Navbar />
 
       <main className="pt-32 pb-20">

@@ -93,7 +93,7 @@ const RequireAuthed: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   if (!ready) return null;
   if (!ok) return (
     <Navigate
-      to="/login"
+      to="/registrar"
       replace
       state={{ from: `${location.pathname}${location.search}${location.hash}` }}
     />

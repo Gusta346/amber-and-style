@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Food placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="bun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="lettuce" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="tomato" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="meat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(64,128)">
+    <rect x="16" y="240" width="352" height="24" rx="12" fill="#1f2937"/>
+    <g transform="translate(0,-8)">
+      <path d="M32,176c0-48 56-96 160-96s160,48 160,96" fill="url(#bun)"/>
+      <rect x="56" y="176" width="272" height="12" rx="6" fill="#fcd34d"/>
+      <rect x="48" y="188" width="288" height="20" rx="10" fill="url(#lettuce)"/>
+      <rect x="48" y="208" width="288" height="20" rx="10" fill="url(#tomato)"/>
+      <rect x="40" y="228" width="304" height="28" rx="12" fill="url(#meat)"/>
+      <path d="M32,256h320c0,0 -8,48 -160,48s-160,-48 -160,-48z" fill="url(#bun)"/>
+    </g>
+  </g>
+</svg>

@@ -363,18 +363,18 @@ const Index = () => {
 
   // Services list (static for now; can be fetched from the database)
   const servicesList = [
-    { key: "corte", name: "Corte", description: "Corte masculino com máquina e tesoura", price: 60.0, duration: 45 },
+    { key: "corte", name: "Corte", description: "Corte masculino com máquina e tesoura", price: 40.0, duration: 45 },
     { key: "barba", name: "Barba", description: "Design e aparo de barba", price: 40.0, duration: 30 },
-    { key: "sobrancelha", name: "Sobrancelha", description: "Design de sobrancelha e acabamento", price: 30.0, duration: 20 },
+    { key: "sobrancelha", name: "Sobrancelha", description: "Design de sobrancelha e acabamento", price: 5.0, duration: 20 },
     { key: "limpeza", name: "Limpeza de Pele", description: "Limpeza facial rápida para manter a pele saudável", price: 50.0, duration: 40 },
   ];
 
   const combos = [
-    { key: "corte-barba", name: "Corte + Barba", description: "Combo com corte e barba com desconto especial", price: 85.0, originalPrice: 100.0, duration: 75 },
+    { key: "corte-barba", name: "Corte + Barba", description: "Combo com corte e barba com desconto especial", price: 70.0, originalPrice: 80.0, duration: 75 },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+  <div className="min-h-screen bg-background leading-comfortable">
       <Navbar />
 
       {/* Hero Section */}
@@ -395,11 +395,11 @@ const Index = () => {
               <span className="text-sm font-medium text-foreground"></span>
             </div>
 
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight">
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-snug">
               <span className="text-gradient glow-text">Anderson Cortes</span>
             </h1>
 
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
               O seu novo visual começa no nosso espelho
             </p>
 

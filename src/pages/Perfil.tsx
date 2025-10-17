@@ -21,6 +21,20 @@ const Perfil: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isStudent, setIsStudent] = useState<boolean>(false);
+  const [subscriber, setSubscriber] = useState<any | null>(null);
+  const { data: subscriberPlan } = useQuery({
+    queryKey: ['subscriber-plan', subscriber?.plan_id || null],
+    enabled: !!(subscriber && subscriber.plan_id),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subscription_plans')
+        .select('id, name, price')
+        .eq('id', subscriber!.plan_id)
+        .limit(1);
+      if (error) throw error;
+      return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    }
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,6 +83,22 @@ const Perfil: React.FC = () => {
     })();
   }, [email]);
 
+  // Load subscriber info (view-only) by email if exists
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!email) { setSubscriber(null); return; }
+        const { data, error } = await (supabase as any)
+          .from('subscribers')
+          .select('id, status, plan_id, start_date')
+          .eq('email', email)
+          .limit(1);
+        if (error) { setSubscriber(null); return; }
+        setSubscriber(Array.isArray(data) && data.length > 0 ? data[0] : null);
+      } catch { setSubscriber(null); }
+    })();
+  }, [email]);
+
   const { data: myBookings, isLoading } = useQuery({
     queryKey: ['my-bookings', userId],
     enabled: !!userId,
@@ -105,7 +135,7 @@ const Perfil: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+  <div className="min-h-screen bg-background leading-comfortable">
       <Navbar />
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-4 max-w-5xl">
@@ -188,6 +218,36 @@ const Perfil: React.FC = () => {
             </div>
 
             <div className="space-y-6">
+              {subscriber && (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle>Assinatura</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-muted-foreground">Status</div>
+                        <div className="text-base font-semibold capitalize">{subscriber.status || 'ativo'}</div>
+                        {subscriber.start_date && (
+                          <div className="text-xs text-muted-foreground mt-1">desde {(() => { try { return format(new Date(subscriber.start_date + 'T00:00:00'), 'd/M/yyyy', { locale: ptBR }) } catch { return subscriber.start_date } })()}</div>
+                        )}
+                        <div className="text-sm mt-2">
+                          <span className="text-muted-foreground">Plano: </span>
+                          {subscriberPlan ? (
+                            <span className="font-medium">{subscriberPlan.name} (R$ {Number(subscriberPlan.price || 0).toFixed(2)})</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-block px-2 py-1 rounded border border-amber-400/60 text-amber-200 text-[11px]">ASSINANTE</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">Para alterar plano ou status, fale conosco na barbearia.</div>
+                  </CardContent>
+                </Card>
+              )}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle>Meu Perfil</CardTitle>

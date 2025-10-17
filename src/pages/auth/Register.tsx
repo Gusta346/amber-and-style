@@ -55,6 +55,16 @@ const Register: React.FC = () => {
               <CardTitle>Criar conta</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Tornar o acesso ao login mais chamativo */}
+              <div className="mb-4 p-3 rounded-md border border-primary/30 bg-primary/5 flex items-center justify-between gap-3">
+                <div className="text-sm">
+                  <div className="font-medium">Já tem uma conta?</div>
+                  <div className="text-muted-foreground">Faça login para acessar seus agendamentos.</div>
+                </div>
+                <Link to="/login">
+                  <Button className="btn-cta whitespace-nowrap">Entrar</Button>
+                </Link>
+              </div>
               <form onSubmit={onSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Nome</Label>
@@ -78,7 +88,10 @@ const Register: React.FC = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Criando...' : 'Criar conta'}</Button>
               </form>
-              <div className="text-sm text-muted-foreground mt-4">Já tem conta? <Link to="/login" className="underline">Entrar</Link></div>
+              <div className="text-sm text-muted-foreground mt-4 text-center">
+                Já tem conta?{' '}
+                <Link to="/login" className="font-semibold text-primary underline-offset-4 hover:underline">Entrar</Link>
+              </div>
             </CardContent>
           </Card>
         </div>

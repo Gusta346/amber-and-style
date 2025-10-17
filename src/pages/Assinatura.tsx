@@ -32,7 +32,7 @@ const Assinatura = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+  <div className="min-h-screen bg-background leading-comfortable">
       <Navbar />
 
       <main className="pt-32 pb-20">
@@ -45,6 +45,11 @@ const Assinatura = () => {
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Economize com nossos planos mensais e tenha acesso a benefícios exclusivos
             </p>
+            <div className="mt-6 max-w-2xl mx-auto border border-primary/30 bg-primary/5 text-foreground/80 rounded-md px-4 py-3">
+              <p className="text-sm md:text-base text-center">
+                As assinaturas são realizadas somente na barbearia (não pelo site).
+              </p>
+            </div>
           </div>
 
           {/* Plans Grid */}
@@ -63,7 +68,7 @@ const Assinatura = () => {
               ))}
             </div>
           ) : plans && plans.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-6 lg:gap-8 max-w-6xl mx-auto">
               {plans.map((plan) => {
                 const Icon = getIcon(plan.name);
                 const isPopular = plan.is_popular;
@@ -72,25 +77,25 @@ const Assinatura = () => {
                   <Card
                     key={plan.id}
                     className={`bg-card border-border hover:border-primary transition-all hover:shadow-glow relative ${
-                      isPopular ? "border-primary shadow-glow scale-105" : ""
+                      isPopular ? "border-primary shadow-glow lg:scale-105" : ""
                     }`}
                   >
                     {isPopular && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                        <span className="bg-gradient-primary text-black px-4 py-1 rounded-full text-sm font-bold">
+                      <div className="absolute top-2 left-1/2 -translate-x-1/2">
+                        <span className="bg-gradient-primary text-white px-4 py-1 rounded-full text-xs sm:text-sm font-bold">
                           Mais Popular
                         </span>
                       </div>
                     )}
 
-                    <CardHeader className="text-center pb-6 pt-6">
+                    <CardHeader className="text-center pb-8 pt-10">
                       <div className="mx-auto mb-4 p-3 bg-muted rounded-full w-fit">
                         <Icon className={`h-8 w-8 ${isPopular ? "text-primary" : "text-foreground"}`} />
                       </div>
                       <CardTitle className="text-2xl mb-2">{plan.name}</CardTitle>
-                      <CardDescription className="text-sm mb-4">{plan.description}</CardDescription>
+                      <CardDescription className="text-sm mb-6 leading-relaxed">{plan.description}</CardDescription>
                       
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p className="text-5xl font-bold text-gradient">
                           R$ {plan.price.toFixed(2)}
                         </p>
@@ -105,7 +110,7 @@ const Assinatura = () => {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="space-y-6 pt-2 pb-6">
+                    <CardContent className="space-y-6 pt-2 pb-8">
                       <ul className="space-y-3">
                         {plan.features.map((feature, index) => (
                           <li key={index} className="flex items-start gap-2">
@@ -124,16 +129,12 @@ const Assinatura = () => {
                         </div>
                       )}
 
-                      <Button
-                        className={`w-full ${
-                          isPopular
-                            ? "bg-gradient-primary hover:opacity-90 text-black font-bold"
-                            : "bg-muted hover:bg-muted/80"
-                        }`}
-                        size="lg"
-                      >
-                        Assinar Agora
-                      </Button>
+                      <div className="pt-2">
+                        <p className="text-center text-xs text-muted-foreground mb-2">Assinatura apenas presencial</p>
+                        <Button className="w-full" size="lg" variant="outline" disabled>
+                          Assinar na barbearia
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -155,9 +156,9 @@ const Assinatura = () => {
                 <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
                   <Check className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Economia garantida</h3>
+                <h3 className="text-xl font-bold">Mais serviços por mês</h3>
                 <p className="text-muted-foreground">
-                  Economize até 30% nos serviços com nossos planos
+                  Use seus 4 serviços mensais e ainda ganhe 2 extras no plano
                 </p>
               </div>
               <div className="space-y-3">
@@ -166,16 +167,16 @@ const Assinatura = () => {
                 </div>
                 <h3 className="text-xl font-bold">Prioridade no agendamento</h3>
                 <p className="text-muted-foreground">
-                  Acesso prioritário aos melhores horários
+                  Acesso preferencial aos melhores horários na agenda
                 </p>
               </div>
               <div className="space-y-3">
                 <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
                   <Star className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Benefícios exclusivos</h3>
+                <h3 className="text-xl font-bold">Preço fechado e economia</h3>
                 <p className="text-muted-foreground">
-                  Descontos em produtos e serviços especiais
+                  Pague um valor fixo mensal e economize no pacote
                 </p>
               </div>
             </div>

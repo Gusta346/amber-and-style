@@ -89,6 +89,86 @@ const AdminDashboard = () => {
     },
   });
 
+  // Subscribers management
+  const { data: subscribers, isLoading: subscribersLoading } = useQuery({
+    queryKey: ["admin-subscribers"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("subscribers")
+        .select("id, email, name, phone, plan_id, status, created_at, start_date, notes")
+        .order('created_at', { ascending: false });
+      if (error) {
+        const msg = String(error?.message || '');
+        if ((error as any)?.code === 'PGRST116' || (error as any)?.status === 404 || /not\s*found|404/i.test(msg)) {
+          return [] as any[];
+        }
+        throw error;
+      }
+      return data as any[];
+    },
+  });
+
+  // Load available plans for create-time selection only
+  const { data: plans } = useQuery({
+    queryKey: ["admin-subscription-plans"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subscription_plans')
+        .select('id, name, price')
+        .order('price', { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    }
+  });
+
+  const [newSubscriberEmail, setNewSubscriberEmail] = useState("");
+  const [newSubscriberPlan, setNewSubscriberPlan] = useState<string>("");
+  const [addingSubscriber, setAddingSubscriber] = useState(false);
+
+  const addSubscriber = async () => {
+    const email = (newSubscriberEmail || '').trim().toLowerCase();
+    if (!email) { toast({ title: 'Informe um e-mail', variant: 'destructive' }); return; }
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(email)) { toast({ title: 'E-mail inválido', description: 'Digite no formato nome@dominio.com', variant: 'destructive' }); return; }
+    setAddingSubscriber(true);
+    try {
+  const payload: any = { email };
+  if (newSubscriberPlan) payload.plan_id = newSubscriberPlan;
+  const { data, error } = await (supabase as any).from('subscribers').insert(payload).select().single();
+      if (error) throw error;
+      toast({ title: 'Assinante adicionado', description: email });
+      setNewSubscriberEmail("");
+  setNewSubscriberPlan("");
+      await queryClient.invalidateQueries({ queryKey: ['admin-subscribers'] });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      const desc = /unique|duplicate/i.test(msg) ? 'Este e-mail já está cadastrado como assinante.' : msg;
+      toast({ title: 'Não foi possível adicionar', description: desc, variant: 'destructive' });
+    } finally {
+      setAddingSubscriber(false);
+    }
+  };
+
+  // Removed inline update controls per request
+
+  const removeSubscriber = async (id: string) => {
+    try {
+      const cacheKey = ['admin-subscribers'];
+      const prev = queryClient.getQueryData<any[]>(cacheKey) || [];
+      queryClient.setQueryData<any[]>(cacheKey, (old = []) => (old || []).filter((s: any) => String(s.id) !== String(id)));
+      const { error } = await (supabase as any).from('subscribers').delete().eq('id', id);
+      if (error) {
+        queryClient.setQueryData<any[]>(cacheKey, prev);
+        toast({ title: 'Erro ao remover assinante', description: error.message, variant: 'destructive' });
+      } else {
+        await queryClient.invalidateQueries({ queryKey: cacheKey });
+        toast({ title: 'Assinante removido' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: String(err?.message || err), variant: 'destructive' });
+    }
+  };
+
   const { data: barbers } = useQuery({
     queryKey: ["admin-barbers"],
     queryFn: async () => {
@@ -358,6 +438,23 @@ const AdminDashboard = () => {
       return sum + price;
     }, 0);
 
+    // Today's revenue from cuts only (status confirmed or completed)
+    const revenueTodayCuts = (all as any[])
+      .filter((b) => String(b.booking_date) === today)
+      .filter((b) => String(b.status || '').toLowerCase() === 'completed')
+      .filter((b) => {
+        const sname = String(
+          b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? ''
+        ).toLowerCase();
+        return sname.includes('corte');
+      })
+      .reduce((sum, b) => {
+        const price = Number(b.service_price ?? services?.find((s: any) => s.id === b.service_id)?.price ?? 0);
+        return sum + price;
+      }, 0);
+
+    const totalSubscribers = (subscribers || []).length;
+
     const perBarber: Record<string, number> = {};
     (barbers || []).forEach((bar: any) => { perBarber[bar.name] = 0; });
     scheduled.forEach((b: any) => {
@@ -365,8 +462,8 @@ const AdminDashboard = () => {
       perBarber[name] = (perBarber[name] || 0) + 1;
     });
 
-    return { todayCount, monthCount, revenue, perBarber };
-  }, [bookings, services, barbers, today, monthStart]);
+    return { todayCount, monthCount, revenue, perBarber, revenueTodayCuts, totalSubscribers };
+  }, [bookings, services, barbers, today, monthStart, subscribers]);
 
   // unified recent history: last 5 of cancelled or completed
   const recentHistory = useMemo(() => {
@@ -519,7 +616,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card className="p-4">
               <div className="text-sm text-muted-foreground">Clientes hoje</div>
               <div className="text-2xl font-bold">{stats.todayCount}</div>
@@ -531,8 +628,18 @@ const AdminDashboard = () => {
             </Card>
 
             <Card className="p-4">
-              <div className="text-sm text-muted-foreground">Faturamento estimado</div>
+              <div className="text-sm text-muted-foreground">Faturamento mensal estimado</div>
               <div className="text-2xl font-bold">R$ {stats.revenue.toFixed(2)}</div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="text-sm text-muted-foreground">Faturamento hoje (apenas cortes concluídos)</div>
+              <div className="text-2xl font-bold">R$ {stats.revenueTodayCuts.toFixed(2)}</div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="text-sm text-muted-foreground">Total de assinantes</div>
+              <div className="text-2xl font-bold">{stats.totalSubscribers}</div>
             </Card>
           </div>
 
@@ -786,6 +893,55 @@ const AdminDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => removeStudent(s.id)}>Remover</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          
+
+          {/* Subscribers (Assinantes) management */}
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold mb-2">Assinantes</h3>
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <input
+                  type="email"
+                  value={newSubscriberEmail}
+                  onChange={(e) => setNewSubscriberEmail(e.target.value)}
+                  placeholder="E-mail do assinante"
+                  className="w-full rounded border border-border p-2 bg-background text-sm"
+                />
+                <select
+                  value={newSubscriberPlan}
+                  onChange={(e) => setNewSubscriberPlan(e.target.value)}
+                  className="w-full sm:w-64 rounded border border-border p-2 bg-background text-sm"
+                >
+                  <option value="">Tipo de plano (opcional)</option>
+                  {(plans || []).map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name} — R$ {Number(p.price || 0).toFixed(2)}</option>
+                  ))}
+                </select>
+                <Button onClick={addSubscriber} disabled={addingSubscriber || !isAdmin} className="w-full sm:w-auto">
+                  {addingSubscriber ? 'Adicionando…' : 'Adicionar'}
+                </Button>
+              </div>
+
+              <div className="space-y-2 max-h-[50vh] overflow-auto">
+                {subscribersLoading && <div className="text-sm text-muted-foreground">Carregando assinantes…</div>}
+                {!subscribersLoading && (!subscribers || subscribers.length === 0) && (
+                  <div className="text-sm text-muted-foreground">Nenhum assinante cadastrado ainda.</div>
+                )}
+                {(subscribers || []).map((s: any) => (
+                  <div key={s.id} className="border rounded p-3 bg-card flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.email}</div>
+                      <div className="text-xs text-muted-foreground truncate">Plano: {(() => { const p = (plans || []).find((x:any)=> x.id === s.plan_id); return p ? `${p.name} (R$ ${Number(p.price||0).toFixed(2)})` : '—'; })()}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => removeSubscriber(s.id)} disabled={!isAdmin}>Remover</Button>
                     </div>
                   </div>
                 ))}

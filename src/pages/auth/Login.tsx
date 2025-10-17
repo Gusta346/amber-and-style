@@ -49,7 +49,18 @@ const Login: React.FC = () => {
               <CardTitle>Entrar</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">Ainda não tem conta? Crie a sua em minutos e garanta seu próximo horário sem fila.</p>
+              {/* Destacar o cadastro primeiro */}
+              <div className="mb-4 p-3 rounded-md border border-primary/30 bg-primary/5 flex items-center justify-between gap-3">
+                <div className="text-sm">
+                  <div className="font-medium">Ainda não tem conta?</div>
+                  <div className="text-muted-foreground">Crie a sua em minutos e garanta seu próximo horário sem fila.</div>
+                </div>
+                <Link to="/registrar">
+                  <Button className="btn-cta whitespace-nowrap">Criar conta</Button>
+                </Link>
+              </div>
+
+              <p className="text-sm text-muted-foreground mb-3">Já tem uma conta? Faça login abaixo.</p>
               <form onSubmit={onSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="email">E-mail</Label>
@@ -61,7 +72,11 @@ const Login: React.FC = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</Button>
               </form>
-              <div className="text-sm text-muted-foreground mt-4">Não tem conta? <Link to="/registrar" className="underline">Criar conta</Link></div>
+              {/* Link reforçado ao cadastro também no rodapé (opcional) */}
+              <div className="text-sm text-muted-foreground mt-4 text-center">
+                Não tem conta?{' '}
+                <Link to="/registrar" className="font-semibold text-primary underline-offset-4 hover:underline">Criar conta</Link>
+              </div>
             </CardContent>
           </Card>
         </div>

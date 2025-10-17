@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, User } from "lucide-react";
-import { format, addDays, startOfDay } from "date-fns";
+import { format, addDays, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -88,6 +88,99 @@ const Agendamento = () => {
       return data;
     },
   });
+
+  // Subscriber and plan info (self)
+  const { data: subscriber } = useQuery({
+    queryKey: ["subscriber-self", authedUser?.email],
+    enabled: !!authedUser?.email,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subscribers')
+        .select('id, email, status, plan_id, start_date')
+        .eq('email', authedUser!.email)
+        .maybeSingle();
+      if (error) {
+        // If RLS prevents access for non-matching emails, simply return null
+        if ((error as any)?.code === 'PGRST116' || (error as any)?.status === 404) return null;
+        throw error;
+      }
+      return data as { id: string; email: string; status: string; plan_id: string | null; start_date: string | null } | null;
+    },
+  });
+
+  const { data: plan } = useQuery({
+    queryKey: ["subscription-plan", subscriber?.plan_id],
+    enabled: !!subscriber?.plan_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subscription_plans')
+        .select('id,name,price,billing_period,max_services')
+        .eq('id', subscriber!.plan_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; name: string; price: number; billing_period: string; max_services: number | null } | null;
+    },
+  });
+
+  // Only consider benefits if subscriber is active
+  const hasActivePlan = !!(subscriber && String(subscriber.status || '').toLowerCase() === 'active' && subscriber.plan_id && plan);
+
+  // Compute current billing period (monthly)
+  const periodStart = useMemo(() => startOfMonth(new Date()), []);
+  const periodEnd = useMemo(() => endOfMonth(new Date()), []);
+
+  // Fetch my bookings in current period to compute usage (client-side classify eligible services)
+  const { data: myPeriodBookings } = useQuery({
+    queryKey: [
+      'my-bookings-period',
+      authedUser?.email,
+      format(periodStart, 'yyyy-MM-dd'),
+      format(periodEnd, 'yyyy-MM-dd')
+    ],
+  enabled: !!authedUser?.email,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('bookings')
+        .select('id, client_email, booking_date, status, service_id, service_name')
+        .eq('client_email', authedUser!.email)
+        .gte('booking_date', format(periodStart, 'yyyy-MM-dd'))
+        .lte('booking_date', format(periodEnd, 'yyyy-MM-dd'))
+        .order('booking_date', { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; client_email: string; booking_date: string; status: string; service_id: string; service_name: string }>;
+    },
+  });
+
+  // Heuristic: classify if a service is included in plan
+  const isEligibleForPlan = (planName?: string, serviceName?: string) => {
+  if (!planName || !serviceName) return false;
+    const pn = planName.toLowerCase();
+    const sn = serviceName.toLowerCase();
+    // "corte e barba" plan: requires both terms
+    if (pn.includes('corte') && pn.includes('barba')) {
+      return sn.includes('corte') && sn.includes('barba');
+    }
+    // "corte" plan: include corte, exclude explicit barba combos
+    if (pn.includes('corte')) {
+      return sn.includes('corte') && !sn.includes('barba');
+    }
+    // Fallback: not eligible
+    return false;
+  };
+
+  // Count completed eligible uses in current period
+  const usedEligibleCount = useMemo(() => {
+    if (!hasActivePlan || !plan || !myPeriodBookings) return 0;
+    return myPeriodBookings.filter((b) => {
+      const st = String(b.status || '').toLowerCase();
+      const cancelled = st.startsWith('cancel');
+      // Count all non-cancelled eligible bookings in the period as consuming a credit
+      return !cancelled && isEligibleForPlan(plan.name, b.service_name);
+    }).length;
+  }, [hasActivePlan, plan, myPeriodBookings]);
+
+  const maxServices = hasActivePlan ? (plan?.max_services ?? null) : null;
+  const remainingEligible = maxServices != null ? Math.max(0, maxServices - usedEligibleCount) : null;
 
   // Fetch day blocks for next 60 days to enforce per-barber day-off
   // dayBlocks query is declared after computing today/rangeEnd
@@ -343,8 +436,14 @@ const Agendamento = () => {
       // Snapshot details for the chosen service or combo
       const selectedService = services?.find((s: any) => s.id === formData.serviceId) || (combos as any)?.find((c: any) => c.id === formData.serviceId);
       const snapshotName = selectedService?.name || null;
-      const snapshotPrice = (typeof selectedService?.price === 'number') ? Number(selectedService.price) : (selectedService?.price ? Number(selectedService.price) : null);
+      let snapshotPrice = (typeof selectedService?.price === 'number') ? Number(selectedService.price) : (selectedService?.price ? Number(selectedService.price) : null);
       const barberSnapshotName = (barbers as any)?.find((bb: any) => bb.id === barberDbId)?.name || null;
+
+      // Apply subscriber benefit if eligible and remaining > 0
+  const eligibleIncluded = !!(hasActivePlan && plan && remainingEligible != null && remainingEligible > 0 && isEligibleForPlan(plan.name, snapshotName || ''));
+      if (eligibleIncluded) {
+        snapshotPrice = 0;
+      }
 
       const { error } = await supabase.from("bookings").insert({
         user_id: authedUser.id,
@@ -355,7 +454,7 @@ const Agendamento = () => {
         barber_id: barberDbId,
         booking_date: format(date, "yyyy-MM-dd"),
         booking_time: formData.time,
-        notes: formData.notes,
+        notes: eligibleIncluded ? `${formData.notes ? formData.notes + '\n' : ''}[Assinante] Este serviço está incluso no plano (${plan?.name}).` : formData.notes,
         service_name: snapshotName,
         service_price: snapshotPrice,
         barber_name: barberSnapshotName,
@@ -410,7 +509,7 @@ const Agendamento = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+  <div className="min-h-screen bg-background leading-comfortable">
       <Navbar />
 
       <main className="pt-32 pb-20">
@@ -495,6 +594,20 @@ const Agendamento = () => {
               {/* Step content */}
               {currentStep === 1 && (
                 <div className="space-y-4">
+                  {hasActivePlan && plan && (
+                    <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground/80">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <span className="font-semibold">Assinante ativo</span>: {plan.name}
+                        </div>
+                        {maxServices != null && (
+                          <div>
+                            Restantes neste mês: <span className="font-semibold">{remainingEligible}</span> de {maxServices}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <Label>Escolha o serviço ou combo *</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {services?.map((service) => (
@@ -507,6 +620,15 @@ const Agendamento = () => {
                           <div>
                             <div className="font-semibold">{service.name}</div>
                             <div className="text-sm text-muted-foreground">R$ {service.price.toFixed(2)}</div>
+                            {hasActivePlan && plan && isEligibleForPlan(plan.name, service.name) && (
+                              <div className="text-xs mt-1">
+                                {remainingEligible && remainingEligible > 0 ? (
+                                  <span className="text-green-600">Preço assinante: R$ 0,00 (incluso) • Restam {remainingEligible}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">Limite do plano atingido neste mês</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="text-sm text-muted-foreground">{service.duration ?? '—'} min</div>
                         </div>
@@ -523,6 +645,15 @@ const Agendamento = () => {
                           <div>
                             <div className="font-semibold">{combo.name}</div>
                             <div className="text-sm text-muted-foreground">R$ {combo.price.toFixed(2)}</div>
+                            {hasActivePlan && plan && isEligibleForPlan(plan.name, combo.name) && (
+                              <div className="text-xs mt-1">
+                                {remainingEligible && remainingEligible > 0 ? (
+                                  <span className="text-green-600">Preço assinante: R$ 0,00 (incluso) • Restam {remainingEligible}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">Limite do plano atingido neste mês</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="text-sm text-muted-foreground">{combo.duration ?? '—'} min</div>
                         </div>
@@ -658,6 +789,7 @@ const Agendamento = () => {
                 const selectedService = services?.find(s => s.id === formData.serviceId) || combos?.find((c: any) => c.id === formData.serviceId);
                 const selectedBarber = (barbers && barbers.find(b => b.id === formData.barberId)) || (formData.barberId && { name: String(formData.barberId) });
                 const formattedDate = date ? format(date, "dd 'de' MMMM yyyy", { locale: ptBR }) : '—';
+                const subscriberIncluded = !!(hasActivePlan && plan && isEligibleForPlan(plan.name, selectedService?.name) && remainingEligible != null && remainingEligible > 0);
 
                 return (
                   <div className="space-y-4">
@@ -672,7 +804,13 @@ const Agendamento = () => {
                           </div>
                           <div>
                             <div className="text-lg font-bold">{selectedService?.name ?? '—'}</div>
-                            <div className="text-sm text-muted-foreground">{selectedService && 'Preço: R$ ' + (selectedService.price?.toFixed ? selectedService.price.toFixed(2) : String(selectedService.price || '—'))}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {selectedService && (
+                                subscriberIncluded
+                                  ? 'Preço assinante: R$ 0,00 (incluso no plano)'
+                                  : 'Preço: R$ ' + (selectedService.price?.toFixed ? selectedService.price.toFixed(2) : String(selectedService.price || '—'))
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground mt-1">{selectedService?.duration ? `${selectedService.duration} min` : ''}</div>
                           </div>
                         </div>
@@ -718,6 +856,13 @@ const Agendamento = () => {
                               className="bg-background border-border mt-1"
                               rows={3}
                             />
+                            {hasActivePlan && plan && (
+                              <div className="text-xs text-muted-foreground mt-2">
+                                {subscriberIncluded
+                                  ? `Este agendamento será incluído no seu plano (${plan.name}). Restantes neste mês: ${remainingEligible}`
+                                  : 'Este serviço não está incluso no seu plano ou o limite mensal foi atingido.'}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
