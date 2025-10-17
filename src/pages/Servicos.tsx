@@ -58,7 +58,7 @@ const Servicos = () => {
 
           {/* Services Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
               {[...Array(6)].map((_, i) => (
                 <Card key={i} className="bg-card border-border">
                   <CardHeader>
@@ -76,7 +76,7 @@ const Servicos = () => {
               {Object.entries(groupedServices).map(([category, categoryServices]) => (
                 <div key={category}>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                     {categoryServices.map((service) => (
                       <Card
                         key={service.id}
@@ -125,7 +125,7 @@ const Servicos = () => {
           {/* Combos Section */}
           <div className="mt-12">
             <h2 className="text-3xl font-bold mb-6">Combos Especiais</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
               {combos?.length ? combos.map((combo: any) => (
                 <div key={combo.id} className="bg-card border-border p-0 rounded-md overflow-hidden">
                   <div className="md:flex md:items-stretch">
@@ -141,7 +141,7 @@ const Servicos = () => {
                         {combo.original_price && <div className="text-sm text-muted-foreground line-through">R$ {Number(combo.original_price).toFixed(2)}</div>}
                         <div className="text-2xl font-bold">R$ {Number(combo.price).toFixed(2)}</div>
                         <div className="mt-2">
-                          <Link to={`/agendamento?comboId=${combo.id}`} onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
+                          <Link to={`/agendamento?serviceId=${combo.id}`} onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                             <Button className="btn-cta">Agendar Combo</Button>
                           </Link>
                         </div>
