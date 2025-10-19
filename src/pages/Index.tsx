@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Star, Users, Award, Sparkles, CheckCircle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -330,6 +331,8 @@ const ReviewFormBlock: React.FC = () => {
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import heroImage from "@/assets/hero-barbershop.jpg";
+import productsImage from "@/assets/products-luxury.jpg";
+import barberProImage from "@/assets/barber-professional.jpg";
 
 const Index = () => {
   const stats = [
@@ -427,35 +430,147 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Services Highlight */}
+      {/* Carrosséis por seção */}
       <section className="py-20 relative">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Explore Nossos <span className="text-gradient">Serviços</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Do corte clássico aos tratamentos exclusivos, oferecemos tudo para o homem moderno
-            </p>
+          {/* Dia das Crianças */}
+          <div className="mb-14">
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-3xl md:text-4xl font-bold">Dia das <span className="text-gradient">Crianças</span> 👶✂️</h2>
+              <Link to="/agendamento" onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
+                <Button variant="outline" className="hidden sm:inline-flex">Agendar agora</Button>
+              </Link>
+            </div>
+            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+              <CarouselContent>
+                {[{
+                  title: 'Corte Kids com atendimento especial',
+                  desc: 'Conforto, paciência e acabamento perfeito para os pequenos',
+                }, {
+                  title: 'Combo Corte + Penteado',
+                  desc: 'Saia com estilo para a festa! Penteados divertidos inclusos',
+                }, {
+                  title: 'Espaço Kids preparado',
+                  desc: 'Ambiente amigável para a primeira experiência no salão',
+                }].map((_, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                    <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
+                      <div className="h-56 md:h-64 bg-gradient-to-br from-amber-200/40 via-pink-200/30 to-sky-200/40" />
+                      <CardContent className="p-6 pb-24 flex flex-col gap-5">
+                        <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">Dia das criancas mais feliz</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">Participe da nossa campanha de arrecadação para presentear quem mais precisa. Sua contribuição vale muito para os pequenos!</p>
+                        <div className="absolute left-6 bottom-6">
+                          <Link to="/contato">
+                            <Button size="sm" variant="outline">Contato</Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="hidden sm:flex left-2" />
+              <CarouselNext className="hidden sm:flex right-2" />
+            </Carousel>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {highlights.map((highlight, index) => (
-              <Link key={index} to={highlight.link}>
-                <Card className="bg-card border-border hover:border-primary transition-all hover:shadow-glow group h-full">
-                  <CardContent className="p-6">
-                    <h3 className="text-xl font-bold mb-3 group-hover:text-gradient transition-colors">
-                      {highlight.title}
-                    </h3>
-                    <p className="text-muted-foreground mb-4">{highlight.description}</p>
-                    <div className="flex items-center text-primary group-hover:gap-2 transition-all">
-                      <span className="text-sm font-medium">Saiba mais</span>
-                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </CardContent>
-                </Card>
+          {/* Produtos */}
+          <div className="mb-14">
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-3xl md:text-4xl font-bold">Linha de <span className="text-gradient">Produtos</span></h2>
+              <Link to="/produtos">
+                <Button variant="outline" className="hidden sm:inline-flex">Ver todos</Button>
               </Link>
-            ))}
+            </div>
+            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+              <CarouselContent>
+                {[{
+                  title: 'Pomadas e finalizadores premium',
+                  desc: 'Textura, brilho e fixação sob medida para seu estilo',
+                }, {
+                  title: 'Shampoos e cuidados diários',
+                  desc: 'Limpeza e tratamento para manter os fios saudáveis',
+                }, {
+                  title: 'Kits presente',
+                  desc: 'Seleções especiais para surpreender com bom gosto',
+                }, {
+                  title: 'Óleos para barba',
+                  desc: 'Hidratação e maciez com fragrâncias exclusivas',
+                }].map((item, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                    <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
+                      <div className="h-56 md:h-64 bg-muted/40 relative overflow-hidden">
+                        <img src={productsImage} alt="Produtos" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
+                      </div>
+                      <CardContent className="p-6 pb-24 flex flex-col gap-5">
+                        <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                        <div className="absolute left-6 bottom-6">
+                          <Link to="/produtos">
+                            <Button size="sm" variant="outline">Explorar</Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="hidden sm:flex left-2" />
+              <CarouselNext className="hidden sm:flex right-2" />
+            </Carousel>
+            <div className="mt-6 text-center">
+              <Link to="/produtos">
+                <Button className="btn-cta">Ver todos os produtos</Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Curso */}
+          <div>
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-3xl md:text-4xl font-bold">Formação <span className="text-gradient">Profissional</span></h2>
+              <Link to="/cursos">
+                <Button variant="outline" className="hidden sm:inline-flex">Ver cursos</Button>
+              </Link>
+            </div>
+            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+              <CarouselContent>
+                {[{
+                  title: 'Curso Profissional Completo',
+                  desc: 'Da base ao avançado com acompanhamento dos especialistas',
+                }, {
+                  title: 'Workshop de Tendências',
+                  desc: 'Atualize seu portfólio com técnicas do momento',
+                }, {
+                  title: 'Mentoria Individual',
+                  desc: 'Acelere sua carreira com feedback 1:1',
+                }].map((item, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                    <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
+                      <div className="h-56 md:h-64 bg-muted/40 relative overflow-hidden">
+                        <img src={barberProImage} alt="Curso" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
+                      </div>
+                      <CardContent className="p-6 pb-24 flex flex-col gap-5">
+                        <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                        <div className="absolute left-6 bottom-6">
+                          <Link to="/cursos">
+                            <Button size="sm" variant="outline">Inscrever-se</Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="hidden sm:flex left-2" />
+              <CarouselNext className="hidden sm:flex right-2" />
+            </Carousel>
+            <div className="mt-6 text-center">
+              <Link to="/cursos">
+                <Button className="btn-cta">Saiba mais</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -472,7 +587,7 @@ const Index = () => {
                 Pronto para a Melhor Experiência?
               </h2>
               <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-                Agende seu horário agora e descubra por que somos a barbearia premium mais procurada
+                Agende seu horário com um de nossos profissionais e transforme seu visual hoje mesmo!
               </p>
               <Link to="/agendamento" onClick={() => window.dispatchEvent(new Event('show-whatsapp-hint'))}>
                 <Button
