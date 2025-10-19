@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Clock, User } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, User, Sparkles, AlertTriangle } from "lucide-react";
 import { format, addDays, addMonths, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
@@ -638,11 +638,15 @@ const Agendamento = () => {
                             <div className="font-semibold">{service.name}</div>
                             <div className="text-sm text-muted-foreground">R$ {service.price.toFixed(2)}</div>
                             {hasActivePlan && plan && isEligibleForPlan(plan.name, service.name) && (
-                              <div className="text-xs mt-1">
+                              <div className="mt-2 flex items-center gap-2">
                                 {remainingEligible && remainingEligible > 0 ? (
-                                  <span className="text-green-600">Preço assinante: R$ 0,00 (incluso) • Restam {remainingEligible}</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600 border border-green-500/20">
+                                    <Sparkles className="w-3 h-3" /> Incluso no plano • Restam {remainingEligible}
+                                  </span>
                                 ) : (
-                                  <span className="text-muted-foreground">Limite do plano atingido neste mês</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    <AlertTriangle className="w-3 h-3" /> Limite do plano atingido neste mês
+                                  </span>
                                 )}
                               </div>
                             )}
@@ -663,11 +667,15 @@ const Agendamento = () => {
                             <div className="font-semibold">{combo.name}</div>
                             <div className="text-sm text-muted-foreground">R$ {combo.price.toFixed(2)}</div>
                             {hasActivePlan && plan && isEligibleForPlan(plan.name, combo.name) && (
-                              <div className="text-xs mt-1">
+                              <div className="mt-2 flex items-center gap-2">
                                 {remainingEligible && remainingEligible > 0 ? (
-                                  <span className="text-green-600">Preço assinante: R$ 0,00 (incluso) • Restam {remainingEligible}</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600 border border-green-500/20">
+                                    <Sparkles className="w-3 h-3" /> Incluso no plano • Restam {remainingEligible}
+                                  </span>
                                 ) : (
-                                  <span className="text-muted-foreground">Limite do plano atingido neste mês</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    <AlertTriangle className="w-3 h-3" /> Limite do plano atingido neste mês
+                                  </span>
                                 )}
                               </div>
                             )}

@@ -710,7 +710,12 @@ const AdminDashboard = () => {
                               <div className="text-sm font-medium truncate">{b.client_name} — {(() => { try { const dt = getBookingDateTime(b); return dt ? format(dt, 'd/M/yyyy', { locale: ptBR }) : b.booking_date } catch { return b.booking_date } })()} {b.booking_time}</div>
                               <div className="text-xs px-2 py-0.5 rounded-full bg-muted/10 text-muted-foreground">{b.status ?? 'scheduled'}</div>
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</div>
+                            <div className="text-xs text-muted-foreground truncate flex items-center gap-2 flex-wrap">
+                              <span>{b.service_name ?? (services || []).find((s: any) => s.id === b.service_id)?.name ?? 'Serviço'} — {b.barber_name ?? (barbers || []).find((x: any) => x.id === b.barber_id)?.name ?? 'Barbeiro'}</span>
+                              {(() => { const price0 = Number(b.service_price ?? NaN) === 0; const tag = String(b.notes || '').toLowerCase().includes('[assinante]'); return price0 || tag; })() && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-600 border border-blue-500/20">Assinante</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
