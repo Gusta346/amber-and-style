@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { format, getDay, startOfMonth, endOfMonth, startOfWeek, addDays } from "date-fns";
+import { format, getDay, startOfMonth, endOfMonth, startOfWeek, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useToast } from '@/hooks/use-toast';
@@ -14,8 +14,25 @@ import { Calendar } from '@/components/ui/calendar';
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
+  // Track 'now' to enable month rollover behaviors (e.g., calendar limits auto-update at midnight)
+  const [now, setNow] = useState<Date>(() => new Date());
+  React.useEffect(() => {
+    // schedule update shortly after next local midnight
+    const next = new Date(now);
+    next.setDate(next.getDate() + 1);
+    next.setHours(0, 0, 2, 0);
+    const ms = Math.max(1000, next.getTime() - Date.now());
+    const t = setTimeout(() => setNow(new Date()), ms);
+    return () => clearTimeout(t);
+  }, [now]);
+
   const today = format(new Date(), "yyyy-MM-dd");
   const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
+  // Allowed calendar window: current month through end of next month
+  const allowedStartDate = React.useMemo(() => startOfMonth(now), [now]);
+  const allowedEndDate = React.useMemo(() => endOfMonth(addMonths(now, 1)), [now]);
 
   const { data: bookings } = useQuery({
     queryKey: ["admin-bookings"],
@@ -199,6 +216,16 @@ const AdminDashboard = () => {
       return data as any[];
     },
   });
+
+  // Ensure selected block date stays within the allowed window; clear if out-of-range after month rollover
+  React.useEffect(() => {
+    if (!blockDate) return;
+    try {
+      if (blockDate < allowedStartDate || blockDate > allowedEndDate) {
+        setBlockDate(undefined);
+      }
+    } catch {}
+  }, [blockDate, allowedStartDate, allowedEndDate]);
 
   // Recent contact messages
   const { data: messages } = useQuery({
@@ -432,8 +459,10 @@ const AdminDashboard = () => {
     const all = bookings || [];
     const scheduled = all.filter((b: any) => !(String(b.status).toLowerCase().startsWith('cancel')));
     const todayCount = scheduled.filter((b: any) => b.booking_date === today).length;
-    const monthCount = scheduled.filter((b: any) => b.booking_date >= monthStart).length;
-    const revenue = scheduled.reduce((sum: number, b: any) => {
+    // Count only bookings within the current month window
+    const monthCount = scheduled.filter((b: any) => (String(b.booking_date) >= monthStart && String(b.booking_date) <= monthEnd)).length;
+    // Monthly revenue: sum only within current month
+    const revenue = scheduled.filter((b: any) => (String(b.booking_date) >= monthStart && String(b.booking_date) <= monthEnd)).reduce((sum: number, b: any) => {
       const price = Number(b.service_price ?? services?.find((s: any) => s.id === b.service_id)?.price ?? 0);
       return sum + price;
     }, 0);
@@ -790,6 +819,11 @@ const AdminDashboard = () => {
                     selected={blockDate}
                     onSelect={(d: any) => setBlockDate(d ?? undefined)}
                     locale={ptBR}
+                    fromMonth={allowedStartDate}
+                    toMonth={allowedEndDate}
+                    fromDate={allowedStartDate}
+                    toDate={allowedEndDate}
+                    disabled={(date: Date) => date < allowedStartDate || date > allowedEndDate}
                     className="rounded-md border border-border"
                   />
                 </div>
