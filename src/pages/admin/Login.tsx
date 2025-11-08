@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Shield, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const AdminLogin = () => {
@@ -48,6 +49,34 @@ const AdminLogin = () => {
     })();
   };
 
+  // Quick dev login (email/password) using env vars
+  // Fixed emails for rapid access (requested)
+  const quickAdminEmail = 'gustavoribeiro4523@gmail.com';
+  const quickUserEmail = 'gustavosteam4523@gmail.com';
+  // Fixed password for both (DEV only)
+  const QUICK_PASSWORD = '123456';
+
+  const quickLogin = async (kind: 'admin' | 'user') => {
+  const qe = kind === 'admin' ? quickAdminEmail : quickUserEmail;
+  if (!qe) { toast({ title: 'E-mail não definido', description: 'E-mail rápido ausente', variant: 'destructive' }); return; }
+  const pwd = QUICK_PASSWORD;
+    setLoading(true);
+    try {
+  const { error } = await supabase.auth.signInWithPassword({ email: qe, password: pwd });
+      if (error) throw error;
+      toast({ title: 'Login rápido', description: kind === 'admin' ? 'Admin autenticado' : 'Usuário autenticado' });
+      if (kind === 'admin') {
+        navigate('/admin-portal-9f3b7', { replace: true });
+      } else {
+        navigate('/perfil', { replace: true });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro no login rápido', description: String(err?.message || err), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -70,7 +99,31 @@ const AdminLogin = () => {
                 <Input id="admin-password" type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full" />
               </div>
 
-              <Button type="submit" className="w-full btn-cta">Entrar</Button>
+              <Button type="submit" className="w-full btn-cta" disabled={loading}>Entrar</Button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => quickLogin('user')}
+                  className="w-full justify-center gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-primary/20 transition"
+                >
+                  <User className="h-4 w-4" />
+                  Login Rápido Usuário
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={loading}
+                  onClick={() => quickLogin('admin')}
+                  className="w-full justify-center gap-2 btn-cta shadow-md hover:shadow-lg transition"
+                >
+                  <Shield className="h-4 w-4" />
+                  Login Rápido Admin
+                </Button>
+              </div>
 
               {/* helper text removed as requested */}
             </form>

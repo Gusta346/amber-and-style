@@ -1,24 +1,14 @@
-# Welcome to your Lovable project
+# Barbearia Anderson — Aplicação Web
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/7194558c-20d2-4179-9be9-303f44e429cb
+Aplicativo web para gerenciamento de agendamentos, assinantes, produtos e área administrativa da barbearia.
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
+## Desenvolvimento
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/7194558c-20d2-4179-9be9-303f44e429cb) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Requisitos: Node.js (recomendado via nvm) e npm.
 
 Follow these steps:
 
@@ -36,19 +26,7 @@ npm i
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Tecnologias
 
 ## What technologies are used for this project?
 
@@ -60,14 +38,18 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+## Deploy
 
-Simply open [Lovable](https://lovable.dev/projects/7194558c-20d2-4179-9be9-303f44e429cb) and click on Share -> Publish.
+O deploy pode ser feito em qualquer provedor estático (Netlify, Vercel, Cloudflare Pages, etc.).
 
-## Can I connect a custom domain to my Lovable project?
+Passos básicos:
 
-Yes, you can!
+```sh
+npm run build
+# gerará /dist
+# publicar conteúdo de dist no provedor escolhido
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Licença
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Código proprietário da Barbearia Anderson. Uso interno.

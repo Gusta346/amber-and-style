@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { User, Shield } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const Login: React.FC = () => {
@@ -37,6 +38,34 @@ const Login: React.FC = () => {
     }
   };
 
+  // Quick dev login helpers (disabled if env vars not set)
+  // Fixed quick-login emails for rapid access (requested)
+  const quickUserEmail = 'gustavosteam4523@gmail.com';
+  const quickAdminEmail = 'gustavoribeiro4523@gmail.com';
+  // Fixed password for rapid access (DEV only — do not use in produção)
+  const QUICK_PASSWORD = '123456';
+
+  const quickLogin = async (kind: 'user' | 'admin') => {
+    const qe = kind === 'user' ? quickUserEmail : quickAdminEmail;
+  if (!qe) { toast({ title: 'E-mail não definido', description: 'E-mail de acesso rápido ausente', variant: 'destructive' }); return; }
+  const pwd = QUICK_PASSWORD;
+    setLoading(true);
+    try {
+  const { error } = await supabase.auth.signInWithPassword({ email: qe, password: pwd });
+      if (error) throw error;
+      toast({ title: 'Login rápido ok', description: kind === 'admin' ? 'Admin autenticado' : 'Usuário autenticado' });
+      if (kind === 'admin') {
+        navigate('/admin-portal-9f3b7', { replace: true });
+      } else {
+        navigate('/perfil', { replace: true });
+      }
+    } catch (err: any) {
+      toast({ title: 'Falha no login rápido', description: String(err?.message || err), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Reenvio de verificação removido por solicitação: verificação apenas no cadastro
 
   return (
@@ -61,6 +90,30 @@ const Login: React.FC = () => {
               </div>
 
               <p className="text-sm text-muted-foreground mb-3">Já tem uma conta? Faça login abaixo.</p>
+              {/* Quick login buttons (dev only) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => quickLogin('user')}
+                  className="w-full justify-center gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-primary/20 transition"
+                >
+                  <User className="h-4 w-4" />
+                  Login Rápido Usuário
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={loading}
+                  onClick={() => quickLogin('admin')}
+                  className="w-full justify-center gap-2 btn-cta shadow-md hover:shadow-lg transition"
+                >
+                  <Shield className="h-4 w-4" />
+                  Login Rápido Admin
+                </Button>
+              </div>
               <form onSubmit={onSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="email">E-mail</Label>

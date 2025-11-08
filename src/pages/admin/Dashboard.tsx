@@ -1093,6 +1093,44 @@ const AdminDashboard = () => {
               </div>
             </Card>
           </div>
+
+          {/* Danger zone: Reset data for clean testing (admin only) */}
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Card className="p-4 border-red-200/60">
+              <h3 className="font-semibold mb-2 text-red-700">Zona de Perigo — Reset de Dados</h3>
+              <p className="text-sm text-muted-foreground mb-3">Apaga agendamentos, bloqueios de dia, mensagens de contato, avaliações, assinantes e alunos. Ideal para começar os testes do zero. Somente administradores.</p>
+              <Button
+                variant="destructive"
+                className="w-full sm:w-auto"
+                disabled={!isAdmin}
+                onClick={async () => {
+                  if (!isAdmin) { toast({ title: 'Acesso negado', description: 'Apenas administradores podem executar.', variant: 'destructive' }); return; }
+                  const ok = window.confirm('Tem certeza que deseja limpar os dados de usuário? Essa ação não pode ser desfeita.');
+                  if (!ok) return;
+                  try {
+                    const { error } = await (supabase as any).rpc('reset_user_data');
+                    if (error) throw error;
+                    toast({ title: 'Dados limpos', description: 'As tabelas de dados do usuário foram limpas.' });
+                    await Promise.all([
+                      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }),
+                      queryClient.invalidateQueries({ queryKey: ['bookings-range'] }),
+                      queryClient.invalidateQueries({ queryKey: ['barber-day-blocks'] }),
+                      queryClient.invalidateQueries({ queryKey: ['barber-day-blocks-range'] }),
+                      queryClient.invalidateQueries({ queryKey: ['admin-contact-messages'] }),
+                      queryClient.invalidateQueries({ queryKey: ['admin-reviews'] }),
+                      queryClient.invalidateQueries({ queryKey: ['admin-subscribers'] }),
+                      queryClient.invalidateQueries({ queryKey: ['admin-students'] }),
+                    ]);
+                  } catch (err: any) {
+                    const msg = String(err?.message || err);
+                    toast({ title: 'Falha ao resetar dados', description: msg, variant: 'destructive' });
+                  }
+                }}
+              >
+                Resetar dados do usuário (DEV)
+              </Button>
+            </Card>
+          </div>
         </div>
       </main>
       {/* Responsive modal with backdrop: bottom-sheet on mobile, centered on desktop */}
