@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, Star, Users, Award, Sparkles, CheckCircle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -97,7 +97,7 @@ const ReviewsBlock = () => {
         </Card>
       </div>
 
-      <div className="max-w-6xl mx-auto px-2 md:px-0">
+      <div className="max-w-2xl mx-auto px-2 md:px-0">
         <h3 className="text-3xl font-bold mb-8 text-center">Depoimentos de <span className="text-gradient">Clientes</span></h3>
 
   {isLoading ? (
@@ -111,7 +111,7 @@ const ReviewsBlock = () => {
             ))}
           </div>
         ) : reviews && reviews.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 xl:gap-8">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 sm:gap-5 lg:gap-6 xl:gap-8">
             {reviews.map((review: any) => (
               <Card key={review.id} className="bg-card border-border hover:border-primary transition-all hover:shadow-glow h-full">
                 <CardContent className="p-5 sm:p-6 space-y-4 h-full">
@@ -333,8 +333,109 @@ import Footer from "@/components/Footer";
 import heroImage from "@/assets/hero-barbershop.jpg";
 import productsImage from "@/assets/products-luxury.jpg";
 import barberProImage from "@/assets/barber-professional.jpg";
+import kids1 from "@/assets/ai/kids-1.svg";
+import kids2 from "@/assets/ai/kids-2.svg";
+import kids3 from "@/assets/ai/kids-3.svg";
+import prodPomade from "@/assets/ai/products-pomade.svg";
+import prodShampoo from "@/assets/ai/products-shampoo.svg";
+import prodKit from "@/assets/ai/products-kit.svg";
+import prodBeardOil from "@/assets/ai/products-beard-oil.svg";
+import coursePro from "@/assets/ai/course-pro.svg";
+import courseWorkshop from "@/assets/ai/course-workshop.svg";
+import courseMentorship from "@/assets/ai/course-mentorship.svg";
 
 const Index = () => {
+  // Carousel detail sources
+  const kidsDetails = [
+    {
+      title: 'Corte Kids com atendimento especial',
+      desc: 'Conforto, paciência e acabamento perfeito para os pequenos',
+      image: kids1,
+    },
+    {
+      title: 'Combo Corte + Penteado',
+      desc: 'Saia com estilo para a festa! Penteados divertidos inclusos',
+      image: kids2,
+    },
+    {
+      title: 'Espaço Kids preparado',
+      desc: 'Ambiente amigável para a primeira experiência no salão',
+      image: kids3,
+    },
+  ];
+
+  const productsDetails = [
+    {
+      title: 'Pomadas e finalizadores premium',
+      desc: 'Textura, brilho e fixação sob medida para seu estilo',
+      image: prodPomade,
+    },
+    {
+      title: 'Shampoos e cuidados diários',
+      desc: 'Limpeza e tratamento para manter os fios saudáveis',
+      image: prodShampoo,
+    },
+    {
+      title: 'Kits presente',
+      desc: 'Seleções especiais para surpreender com bom gosto',
+      image: prodKit,
+    },
+    {
+      title: 'Óleos para barba',
+      desc: 'Hidratação e maciez com fragrâncias exclusivas',
+      image: prodBeardOil,
+    },
+  ];
+
+  const coursesDetails = [
+    {
+      title: 'Curso Profissional Completo',
+      desc: 'Da base ao avançado com acompanhamento dos especialistas',
+      image: coursePro,
+    },
+    {
+      title: 'Workshop de Tendências',
+      desc: 'Atualize seu portfólio com técnicas do momento',
+      image: courseWorkshop,
+    },
+    {
+      title: 'Mentoria Individual',
+      desc: 'Acelere sua carreira com feedback 1:1',
+      image: courseMentorship,
+    },
+  ];
+
+  // Carousel selection state to show detail panels
+  const [kidsApi, setKidsApi] = useState<any>(null);
+  const [kidsIndex, setKidsIndex] = useState(0);
+  const [productsApi, setProductsApi] = useState<any>(null);
+  const [productsIndex, setProductsIndex] = useState(0);
+  const [coursesApi, setCoursesApi] = useState<any>(null);
+  const [coursesIndex, setCoursesIndex] = useState(0);
+
+  useEffect(() => {
+    if (!kidsApi) return;
+    const onSelect = () => setKidsIndex(kidsApi.selectedScrollSnap());
+    onSelect();
+    kidsApi.on('select', onSelect);
+    return () => kidsApi.off('select', onSelect);
+  }, [kidsApi]);
+
+  useEffect(() => {
+    if (!productsApi) return;
+    const onSelect = () => setProductsIndex(productsApi.selectedScrollSnap());
+    onSelect();
+    productsApi.on('select', onSelect);
+    return () => productsApi.off('select', onSelect);
+  }, [productsApi]);
+
+  useEffect(() => {
+    if (!coursesApi) return;
+    const onSelect = () => setCoursesIndex(coursesApi.selectedScrollSnap());
+    onSelect();
+    coursesApi.on('select', onSelect);
+    return () => coursesApi.off('select', onSelect);
+  }, [coursesApi]);
   const stats = [
     { icon: Users, value: "10,000+", label: "Clientes Satisfeitos" },
     { icon: Star, value: "4.9/5", label: "Avaliação Média" },
@@ -441,24 +542,17 @@ const Index = () => {
                 <Button variant="outline" className="hidden sm:inline-flex">Agendar agora</Button>
               </Link>
             </div>
-            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+            <Carousel opts={{ align: "start", loop: true }} setApi={setKidsApi} className="relative overflow-hidden">
               <CarouselContent>
-                {[{
-                  title: 'Corte Kids com atendimento especial',
-                  desc: 'Conforto, paciência e acabamento perfeito para os pequenos',
-                }, {
-                  title: 'Combo Corte + Penteado',
-                  desc: 'Saia com estilo para a festa! Penteados divertidos inclusos',
-                }, {
-                  title: 'Espaço Kids preparado',
-                  desc: 'Ambiente amigável para a primeira experiência no salão',
-                }].map((_, i) => (
-                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                {kidsDetails.map((item, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/3 xl:basis-1/3 2xl:basis-1/3">
                     <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
-                      <div className="h-56 md:h-64 bg-gradient-to-br from-amber-200/40 via-pink-200/30 to-sky-200/40" />
+                      <div className="h-56 md:h-64 bg-muted/40 relative overflow-hidden">
+                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
+                      </div>
                       <CardContent className="p-6 pb-24 flex flex-col gap-5">
-                        <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">Dia das criancas mais feliz</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">Participe da nossa campanha de arrecadação para presentear quem mais precisa. Sua contribuição vale muito para os pequenos!</p>
+                        <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
                         <div className="absolute left-6 bottom-6">
                           <Link to="/contato">
                             <Button size="sm" variant="outline">Contato</Button>
@@ -472,6 +566,11 @@ const Index = () => {
               <CarouselPrevious className="hidden sm:flex left-2" />
               <CarouselNext className="hidden sm:flex right-2" />
             </Carousel>
+            <div className="mt-4">
+              <div key={kidsIndex} className="p-4 rounded-md border border-border bg-muted/30 animate-fade-in">
+                <p className="text-sm text-muted-foreground"><span className="font-medium">{kidsDetails[kidsIndex]?.title}</span> — {kidsDetails[kidsIndex]?.desc}</p>
+              </div>
+            </div>
           </div>
 
           {/* Produtos */}
@@ -482,25 +581,13 @@ const Index = () => {
                 <Button variant="outline" className="hidden sm:inline-flex">Ver todos</Button>
               </Link>
             </div>
-            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+            <Carousel opts={{ align: "start", loop: true }} setApi={setProductsApi} className="relative overflow-hidden">
               <CarouselContent>
-                {[{
-                  title: 'Pomadas e finalizadores premium',
-                  desc: 'Textura, brilho e fixação sob medida para seu estilo',
-                }, {
-                  title: 'Shampoos e cuidados diários',
-                  desc: 'Limpeza e tratamento para manter os fios saudáveis',
-                }, {
-                  title: 'Kits presente',
-                  desc: 'Seleções especiais para surpreender com bom gosto',
-                }, {
-                  title: 'Óleos para barba',
-                  desc: 'Hidratação e maciez com fragrâncias exclusivas',
-                }].map((item, i) => (
-                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                {productsDetails.map((item, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/3 xl:basis-1/3">
                     <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
                       <div className="h-56 md:h-64 bg-muted/40 relative overflow-hidden">
-                        <img src={productsImage} alt="Produtos" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
+                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
                       </div>
                       <CardContent className="p-6 pb-24 flex flex-col gap-5">
                         <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">{item.title}</h3>
@@ -518,6 +605,11 @@ const Index = () => {
               <CarouselPrevious className="hidden sm:flex left-2" />
               <CarouselNext className="hidden sm:flex right-2" />
             </Carousel>
+            <div className="mt-4">
+              <div key={productsIndex} className="p-4 rounded-md border border-border bg-muted/30 animate-fade-in">
+                <p className="text-sm text-muted-foreground"><span className="font-medium">{productsDetails[productsIndex]?.title}</span> — {productsDetails[productsIndex]?.desc}</p>
+              </div>
+            </div>
             <div className="mt-6 text-center">
               <Link to="/produtos">
                 <Button className="btn-cta">Ver todos os produtos</Button>
@@ -533,22 +625,13 @@ const Index = () => {
                 <Button variant="outline" className="hidden sm:inline-flex">Ver cursos</Button>
               </Link>
             </div>
-            <Carousel opts={{ align: "start", loop: true }} className="relative overflow-hidden">
+            <Carousel opts={{ align: "start", loop: true }} setApi={setCoursesApi} className="relative overflow-hidden">
               <CarouselContent>
-                {[{
-                  title: 'Curso Profissional Completo',
-                  desc: 'Da base ao avançado com acompanhamento dos especialistas',
-                }, {
-                  title: 'Workshop de Tendências',
-                  desc: 'Atualize seu portfólio com técnicas do momento',
-                }, {
-                  title: 'Mentoria Individual',
-                  desc: 'Acelere sua carreira com feedback 1:1',
-                }].map((item, i) => (
-                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
+                {coursesDetails.map((item, i) => (
+                  <CarouselItem key={i} className="basis-[88%] sm:basis-1/2 md:basis-1/3 lg:basis-1/3 xl:basis-1/3 2xl:basis-1/3">
                     <Card className="group overflow-hidden border-border hover:border-primary hover:shadow-glow transition-all h-full relative">
                       <div className="h-56 md:h-64 bg-muted/40 relative overflow-hidden">
-                        <img src={barberProImage} alt="Curso" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
+                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-70 transition-opacity" />
                       </div>
                       <CardContent className="p-6 pb-24 flex flex-col gap-5">
                         <h3 className="text-lg font-bold leading-snug group-hover:text-gradient transition-colors">{item.title}</h3>
@@ -566,6 +649,11 @@ const Index = () => {
               <CarouselPrevious className="hidden sm:flex left-2" />
               <CarouselNext className="hidden sm:flex right-2" />
             </Carousel>
+            <div className="mt-4">
+              <div key={coursesIndex} className="p-4 rounded-md border border-border bg-muted/30 animate-fade-in">
+                <p className="text-sm text-muted-foreground"><span className="font-medium">{coursesDetails[coursesIndex]?.title}</span> — {coursesDetails[coursesIndex]?.desc}</p>
+              </div>
+            </div>
             <div className="mt-6 text-center">
               <Link to="/cursos">
                 <Button className="btn-cta">Saiba mais</Button>

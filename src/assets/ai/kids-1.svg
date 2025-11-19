@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#FFE4A3"/>
+      <stop offset="50%" stop-color="#FFC2DD"/>
+      <stop offset="100%" stop-color="#BAE6FD"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.7" cy="0.3" r="0.6">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="2" fill="#ffffff" opacity="0.2"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g1)"/>
+  <rect width="1200" height="800" fill="url(#glow)"/>
+  <rect width="1200" height="800" fill="url(#dots)"/>
+  <g opacity="0.35">
+    <circle cx="180" cy="680" r="140" fill="#fff"/>
+    <circle cx="1040" cy="160" r="110" fill="#fff"/>
+  </g>
+  <g>
+    <text x="72" y="140" font-family="'Inter', system-ui, sans-serif" font-size="64" font-weight="800" fill="#1f2937">Corte Kids</text>
+    <text x="72" y="200" font-family="'Inter', system-ui, sans-serif" font-size="28" fill="#374151" opacity="0.9">Atendimento especial, conforto e acabamento perfeito</text>
+  </g>
+  <g transform="translate(800,420) scale(1.2)" opacity="0.12">
+    <path d="M0 -120 C 60 -80, 60 80, 0 120 C -60 80, -60 -80, 0 -120 Z" fill="#111827"/>
+    <circle cx="-50" cy="0" r="22" fill="#111827"/>
+    <circle cx="50" cy="0" r="22" fill="#111827"/>
+  </g>
+</svg>

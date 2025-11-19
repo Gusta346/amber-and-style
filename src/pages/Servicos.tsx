@@ -58,7 +58,7 @@ const Servicos = () => {
 
           {/* Services Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6">
               {[...Array(6)].map((_, i) => (
                 <Card key={i} className="bg-card border-border">
                   <CardHeader>
@@ -76,7 +76,7 @@ const Servicos = () => {
               {Object.entries(groupedServices).map(([category, categoryServices]) => (
                 <div key={category}>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
                     {categoryServices.map((service) => (
                       <Card
                         key={service.id}
@@ -125,7 +125,7 @@ const Servicos = () => {
           {/* Combos Section */}
           <div className="mt-12">
             <h2 className="text-3xl font-bold mb-6">Combos Especiais</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
               {combos?.length ? combos.map((combo: any) => (
                 <div key={combo.id} className="bg-card border-border p-0 rounded-md overflow-hidden">
                   <div className="md:flex md:items-stretch">

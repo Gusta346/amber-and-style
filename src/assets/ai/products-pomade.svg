@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.4" cy="0.3" r="0.6">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect width="1200" height="800" fill="url(#shine)"/>
+  <g>
+    <text x="72" y="140" font-family="'Inter', system-ui, sans-serif" font-size="56" font-weight="800" fill="#e5e7eb">Pomada Premium</text>
+    <text x="72" y="195" font-family="'Inter', system-ui, sans-serif" font-size="24" fill="#d1d5db" opacity="0.9">Textura matte, fixação sob medida</text>
+  </g>
+  <g transform="translate(880,460)" opacity="0.9">
+    <circle cx="0" cy="0" r="120" fill="#0b1220" stroke="#374151" stroke-width="4"/>
+    <circle cx="0" cy="0" r="96" fill="#111827" stroke="#4b5563" stroke-width="2"/>
+    <text x="0" y="10" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="24" fill="#e5e7eb">MATTE</text>
+  </g>
+</svg>

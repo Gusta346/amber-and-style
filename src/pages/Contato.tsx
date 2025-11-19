@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Phone, Mail, Clock, Instagram, Facebook, Award, ShieldCheck, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import barberProImage from "@/assets/barber-professional.jpg";
 
 const Contato = () => {
   const { toast } = useToast();
@@ -98,10 +99,12 @@ const Contato = () => {
           <section className="mb-16 max-w-6xl mx-auto">
             <Card className="bg-card border-border overflow-hidden">
               <div className="grid grid-cols-1 lg:grid-cols-2">
-                <div className="relative h-64 lg:h-full">
+                <div className="relative h-64 lg:h-full lg:max-h-[520px]">
                   <img
-                    src="/sobre.jpg"
+                    src={barberProImage}
                     alt="Nossa equipe profissional"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent" />
